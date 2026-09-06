@@ -26,17 +26,17 @@ class DocumentType(str, Enum):
 
 
 class LineItem(BaseModel):
-    """Represents a single debit or credit line in a journal entry (SAP BSEG equivalent)."""
+    """Represents a single debit or credit line in a journal entry (SAP BSEG / ACDOCA equivalent)."""
     line_id: str = Field(..., description="Unique line item identifier")
     entry_id: str = Field(..., description="Parent document identifier")
-    line_number: int = Field(..., description="Item sequence number within document (BUZEI)")
-    account_code: str = Field(..., description="GL account number (HKONT)")
+    line_number: int = Field(..., description="Item sequence number within document (BUZEI / DOCLN)")
+    account_code: str = Field(..., description="GL account number (HKONT / RACCT)")
     account_name: str = Field(default="", description="Account name description")
     debit_credit: DebitCredit = Field(..., description="DEBIT or CREDIT indicator (SHKZG: S=Debit, H=Credit)")
-    amount: Decimal = Field(..., description="Monetary amount in document currency (WRBTR)")
-    currency: str = Field(default="USD", description="Currency code (WAERS)")
+    amount: Decimal = Field(..., description="Monetary amount in document currency (WRBTR / WSL)")
+    currency: str = Field(default="USD", description="Currency code (WAERS / RWCUR)")
     posting_key: str = Field(default="40", description="SAP Posting Key (BSCHL: 40=Debit GL, 50=Credit GL, etc.)")
-    cost_center: Optional[str] = Field(default=None, description="Cost Center (KOSTL)")
+    cost_center: Optional[str] = Field(default=None, description="Cost Center (KOSTL / RCNTR)")
     profit_center: Optional[str] = Field(default=None, description="Profit Center (PRCTR)")
     vendor_id: Optional[str] = Field(default=None, description="Vendor master ID (LIFNR)")
     customer_id: Optional[str] = Field(default=None, description="Customer master ID (KUNNR)")
@@ -44,9 +44,36 @@ class LineItem(BaseModel):
     line_text: str = Field(default="", description="Item text (SGTXT)")
     tax_code: Optional[str] = Field(default=None, description="Sales/Purchase Tax Code (MWSKZ)")
 
+    # Enterprise Multi-Currency Triad (ASC 830 / IAS 21)
+    amount_local: Optional[Decimal] = Field(default=None, description="Amount in company code functional currency (HSL / DMBTR)")
+    currency_local: str = Field(default="USD", description="Company code local currency (RHCUR / HWAER)")
+    amount_group: Optional[Decimal] = Field(default=None, description="Amount in global group reporting currency (KSL / DMB21)")
+    currency_group: str = Field(default="USD", description="Group consolidation currency (RKCUR / HWAE2)")
+    exchange_rate_local: Decimal = Field(default=Decimal("1.000000"), description="Exchange rate from doc to local currency")
+    exchange_rate_group: Decimal = Field(default=Decimal("1.000000"), description="Exchange rate from doc to group currency")
+
+    # Enterprise S/4HANA ACDOCA Universal Journal Dimensions
+    ledger_group: str = Field(default="0L", description="Ledger Group / Target Ledger (RLDNR: 0L=Leading)")
+    segment: Optional[str] = Field(default=None, description="Operating Business Segment (SEGMENT)")
+    functional_area: Optional[str] = Field(default=None, description="Functional Area (FKBER)")
+    wbs_element: Optional[str] = Field(default=None, description="Work Breakdown Structure Element (PS_POSID)")
+    asset_number: Optional[str] = Field(default=None, description="Main Asset Number (ANLN1)")
+    asset_subnumber: Optional[str] = Field(default=None, description="Asset Subnumber (ANLN2)")
+    material_number: Optional[str] = Field(default=None, description="Material Master Number (MATNR)")
+    plant: Optional[str] = Field(default=None, description="Plant / Facility Code (WERKS)")
+    tax_jurisdiction: Optional[str] = Field(default=None, description="Tax Jurisdiction Code (TXJCD)")
+    clearing_doc: Optional[str] = Field(default=None, description="Clearing Document Number (AUGBL)")
+
     def model_post_init(self, __context) -> None:
         # Quantize amount to exactly 2 decimal places to prevent floating-point drift
         object.__setattr__(self, 'amount', self.amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+        # Multi-currency fallbacks and quantization
+        amt_loc = self.amount_local if self.amount_local is not None else self.amount
+        amt_grp = self.amount_group if self.amount_group is not None else self.amount
+        object.__setattr__(self, 'amount_local', amt_loc.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        object.__setattr__(self, 'amount_group', amt_grp.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
         # Ensure correct SAP posting key default if not explicitly provided
         if self.posting_key in ("40", "50"):
             expected_key = "40" if self.debit_credit == DebitCredit.DEBIT else "50"
@@ -97,6 +124,40 @@ class JournalEntry(BaseModel):
     def is_balanced(self) -> bool:
         """Double-entry invariant: Total Debits == Total Credits."""
         return self.balance_delta == Decimal("0.00")
+
+    @property
+    def total_debits_local(self) -> Decimal:
+        """Total debit sum in local functional currency (HSL / DMBTR)."""
+        debits = [line.amount_local for line in self.lines if line.debit_credit == DebitCredit.DEBIT and line.amount_local is not None]
+        return sum(debits, Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def total_credits_local(self) -> Decimal:
+        """Total credit sum in local functional currency (HSL / DMBTR)."""
+        credits = [line.amount_local for line in self.lines if line.debit_credit == DebitCredit.CREDIT and line.amount_local is not None]
+        return sum(credits, Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def is_balanced_local(self) -> bool:
+        """Double-entry invariant in local functional currency."""
+        return (self.total_debits_local - self.total_credits_local).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) == Decimal("0.00")
+
+    @property
+    def total_debits_group(self) -> Decimal:
+        """Total debit sum in global group reporting currency (KSL / DMB21)."""
+        debits = [line.amount_group for line in self.lines if line.debit_credit == DebitCredit.DEBIT and line.amount_group is not None]
+        return sum(debits, Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def total_credits_group(self) -> Decimal:
+        """Total credit sum in global group reporting currency (KSL / DMB21)."""
+        credits = [line.amount_group for line in self.lines if line.debit_credit == DebitCredit.CREDIT and line.amount_group is not None]
+        return sum(credits, Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def is_balanced_group(self) -> bool:
+        """Double-entry invariant in global group reporting currency."""
+        return (self.total_debits_group - self.total_credits_group).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) == Decimal("0.00")
 
 
 class Batch(BaseModel):

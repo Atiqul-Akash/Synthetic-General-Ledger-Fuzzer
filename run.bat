@@ -25,7 +25,7 @@ echo   [4] Run SOX-404 Forensic Audit on Generated Dataset
 echo       Runs Benford, DOA split-invoices, and circular round-trip tests
 echo.
 echo   [5] Run Complete Automated Test Suite (pytest)
-echo       Runs all 53 unit and integration tests
+echo       Runs all 75 unit and integration tests
 echo.
 echo   [6] Exit
 echo.
@@ -69,7 +69,7 @@ goto pause_exit
 
 :run_tests
 echo.
-echo Executing full pytest verification suite (53 tests)...
+echo Executing full pytest verification suite (75 tests)...
 python -m pytest -v
 goto pause_exit
 

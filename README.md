@@ -3,7 +3,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License" />
-  <img src="https://img.shields.io/badge/Tests-53%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="53 Tests Passed" />
+  <img src="https://img.shields.io/badge/Tests-75%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="75 Tests Passed" />
+  <img src="https://img.shields.io/badge/Version-0.2.0%20Enterprise-blueviolet?style=for-the-badge" alt="v0.2.0 Enterprise" />
   <img src="https://img.shields.io/badge/Double--Entry-Zero--Sum%20Verified-emerald?style=for-the-badge" alt="Double-Entry Invariant" />
   <img src="https://img.shields.io/badge/SOX-404-Compliant-indigo?style=for-the-badge" alt="SOX-404 Compliant" />
   <img src="https://img.shields.io/badge/Author-Atiqul--Akash-orange?style=for-the-badge&logo=github&logoColor=white" alt="Atiqul-Akash" />
@@ -23,12 +24,15 @@
 ## Table of Contents
 
 - [Executive Summary](#executive-summary)
-- [System Architecture](#system-architecture)
+- [Enterprise Architecture (v0.2.0 Upgrade)](#enterprise-architecture-v020-upgrade)
 - [Core Business Cycles](#core-business-cycles)
   - [Procure-to-Pay (P2P)](#1-procure-to-pay-p2p)
   - [Order-to-Cash (O2C)](#2-order-to-cash-o2c)
   - [Record-to-Report (R2R)](#3-record-to-report-r2r)
 - [Calibrated Micro-Anomaly Library](#calibrated-micro-anomaly-library)
+- [Multi-Currency Triangulation Engine (ASC 830 / IAS 21)](#multi-currency-triangulation-engine-asc-830--ias-21)
+- [Macro-Economic Seasonality Modulator](#macro-economic-seasonality-modulator)
+- [SAP S/4HANA Universal Journal (ACDOCA)](#sap-s4hana-universal-journal-acdoca)
 - [Double-Entry Mathematical Invariant Gate](#double-entry-mathematical-invariant-gate)
 - [Dual Graphical User Interfaces (Zero-Confusion)](#dual-graphical-user-interfaces)
   - [1. Modern Web GUI (Browser-Based)](#1-modern-web-gui)
@@ -37,7 +41,7 @@
 - [CLI Reference](#cli-reference)
 - [Dual-Artifact Export Formats](#dual-artifact-export-formats)
 - [Automated Forensic Audit Screening (SOX-404)](#automated-forensic-audit-screening)
-- [Automated Test Suite (53 Tests)](#automated-test-suite)
+- [Automated Test Suite (75 Tests)](#automated-test-suite)
 - [Repository Structure](#repository-structure)
 - [Contributing & License](#contributing--license)
 
@@ -135,6 +139,52 @@ The fuzzer injects 5 precisely calibrated forensic accounting micro-anomalies ma
 
 ---
 
+## Multi-Currency Triangulation Engine (ASC 830 / IAS 21)
+
+Enterprise multinationals require reporting across multiple currency ledgers with differing functional and consolidation currencies. The v0.2.0 engine implements an automated **ASC 830 / IAS 21 compliant valuation triad**:
+
+- **Stochastic Spot Rates**: Daily fluctuating exchange rates modeled using a mean-reverting **Geometric Brownian Motion (Ornstein-Uhlenbeck drift)** pulling towards corporate baseline pegs.
+- **Triangulation Engine**: Triangulates cross-rates between EUR, GBP, JPY, CHF, CAD, AUD, and USD bases.
+- **Valuation Triad**:
+  - `amount` / `WSL`: Transaction Document Currency amount.
+  - `amount_local` / `HSL`: Company code functional operating currency (e.g. USD).
+  - `amount_group` / `KSL`: Global corporate consolidation currency (e.g. USD).
+- **Exact Cent Invariant Safeguard**: Fractional-cent exchange rate conversion rounding deltas are automatically absorbed into offsetting credit legs to maintain $\sum \text{Debits} == \sum \text{Credits} \equiv 0.00$ in all three valuation currencies simultaneously (`is_balanced_local` & `is_balanced_group`).
+
+---
+
+## Macro-Economic Seasonality Modulator
+
+Real enterprise accounting volumes follow pronounced temporal patterns rather than uniform random spreads. The `MacroCalendarModulator` introduces:
+
+- **Quarter-End "Hockey Stick" Surges**: Corporate sales reps and billing departments rush to close revenue before quarter-end dates (March 24-31, June 24-30, September 24-30: **+45% volume surge**).
+- **Q4 Fiscal Year-End Close**: Annual financial closing and holiday push (December 15-31: **+85% volume surge**).
+- **January Post-Close Lull**: Early January posting slowdown (-35% volume).
+- **Enterprise Day-of-Week Cadence**: Corporate posting peaks mid-week (Tuesday through Thursday at $1.25\times$), with weekend automated system batches suppressed ($0.15\times$).
+
+---
+
+## SAP S/4HANA Universal Journal (ACDOCA)
+
+For modern enterprise ERP integration and ML training against next-generation financial architectures, the engine features a dedicated exporter for **SAP S/4HANA Table ACDOCA (Universal Journal)** with 50+ enterprise dimensions:
+
+| Field | SAP Technical Name | Description |
+| :--- | :--- | :--- |
+| **Client** | `RCLNT` | SAP Client partition (e.g. `100`) |
+| **Ledger Group** | `RLDNR` | Target General Ledger (`0L` Leading Ledger) |
+| **Company Code** | `RBUKRS` | Legal Entity identifier (`1000`) |
+| **Fiscal Year / Period** | `GJAHR` / `POPER` | Fiscal Year (2026) and Period (`001` - `016`) |
+| **Document Number** | `BELNR` | Accounting document number |
+| **Line Item** | `DOCLN` | 6-digit line item sequence (`000001`, `000002`) |
+| **Doc / Local / Group Amounts** | `WSL` / `HSL` / `KSL` | Triple-valuation amounts in `decimal128(18, 2)` |
+| **Currencies** | `RWCUR` / `RHCUR` / `RKCUR` | Transaction, Local, and Group currency codes |
+| **Controlling Objects** | `RCNTR` / `PRCTR` | Cost Center (`KOSTL`) and Profit Center (`PRCTR`) |
+| **Segment Reporting** | `SEGMENT` | IFRS 8 / ASC 280 Operating Segment |
+| **Functional Area** | `FKBER` | Cost of Sales Functional Area (`FA_OPS`, `FA_ADMIN`) |
+| **Ground-Truth Flags** | `IS_ANOMALY` / `ANOMALY_IDS` | ML training labels and anomaly IDs |
+
+---
+
 ## Double-Entry Mathematical Invariant Gate
 
 Unlike simplistic random generators that use IEEE 754 floating-point numbers (`float64`), this engine enforces **Python `Decimal` cent-level quantization (`ROUND_HALF_UP`)** across all transactions.
@@ -143,6 +193,7 @@ $$\sum_{i=1}^{N_{\text{debits}}} \text{Debit}_i - \sum_{j=1}^{M_{\text{credits}}
 
 - **Parquet Export Precision**: Columns utilize PyArrow `pa.decimal128(18, 2)` to eliminate precision degradation when saved to disk.
 - **Automated Invariant Gate**: Every batch passes through `InvariantVerifier` prior to export. If a single entry deviates by even $\$0.01$, the pipeline aborts immediately.
+- **Streaming Zero-OOM Engine**: `ChunkedSynthesisEngine` and `StreamingParquetExporter` stream multi-million-row datasets sequentially in configurable row-group chunks to disk with zero memory leaks.
 
 ---
 
@@ -205,19 +256,23 @@ python run.py --test      # Executes automated pytest suite
 The fuzzer provides a high-performance CLI powered by Typer and Rich:
 
 ```bash
-# 1. Synthesize 5,000 journal entries with 5% anomaly rate
+# 1. Synthesize 5,000 journal entries with 5% anomaly rate (Standard)
 python -m gl_fuzzer.cli generate --count 5000 --anomaly-rate 0.05 --out-dir ./output --export-formats parquet,csv,sap
 
-# 2. Verify double-entry balance and manifest checksums
+# 2. Enterprise Synthesis: ACDOCA Universal Journal + Multi-Currency + Macro Seasonality
+python -m gl_fuzzer.cli generate --count 10000 --anomaly-rate 0.05 --acdoca --multi-currency --seasonality --stream-chunks 5000 --out-dir ./enterprise_output
+
+# 3. Verify double-entry balance and manifest checksums (Parquet or ACDOCA)
 python -m gl_fuzzer.cli verify --dataset ./output/gl_feed.parquet --manifest ./output/ground_truth_manifest.json
+python -m gl_fuzzer.cli verify --dataset ./enterprise_output/acdoca_feed.parquet
 
-# 3. Run automated SOX-404 forensic audit screening
-python -m gl_fuzzer.cli audit-report --dataset ./output/gl_feed.parquet --manifest ./output/ground_truth_manifest.json
+# 4. Run automated SOX-404 forensic audit screening
+python -m gl_fuzzer.cli audit-report --dataset ./enterprise_output/acdoca_feed.parquet --manifest ./enterprise_output/ground_truth_manifest.json
 
-# 4. Benchmark generation and fuzzing throughput
+# 5. Benchmark generation and fuzzing throughput
 python -m gl_fuzzer.cli benchmark --count 10000 --anomaly-rate 0.05
 
-# 5. Launch graphical interface
+# 6. Launch graphical interface
 python -m gl_fuzzer.cli gui --port 8080          # Web GUI
 python -m gl_fuzzer.cli gui --mode desktop      # Desktop GUI
 ```
@@ -228,13 +283,14 @@ python -m gl_fuzzer.cli gui --mode desktop      # Desktop GUI
 
 Generated datasets are exported with full audit trail documentation:
 
-1. **Parquet Feed (`gl_feed.parquet`)**: High-performance columnar storage using `decimal128(18, 2)` for amounts and Snappy compression.
-2. **CSV Feed (`gl_feed.csv`)**: RFC-4180 compliant tabular ledger format.
-3. **SAP ERP Standard Tables**:
+1. **SAP S/4HANA Universal Journal (`acdoca_feed.parquet` & `acdoca_feed.csv`)**: 50+ enterprise dimension ACDOCA table formatted with `decimal128(18, 2)` Snappy compression and CSV.
+2. **Parquet Feed (`gl_feed.parquet`)**: High-performance columnar storage using `decimal128(18, 2)` for amounts and Snappy compression.
+3. **CSV Feed (`gl_feed.csv`)**: RFC-4180 compliant tabular ledger format.
+4. **SAP ERP Standard Tables**:
    - **`BKPF.csv`**: SAP Accounting Document Header (`BUKRS`, `BELNR`, `GJAHR`, `BLART`, `BLDAT`, `BUDAT`, `USNAM`, `XBLNR`, `BKTXT`).
    - **`BSEG.csv`**: SAP Accounting Document Line Item Segment (`BUKRS`, `BELNR`, `GJAHR`, `BUZEI`, `BSCHL`, `SHKZG`, `HKONT`, `WRBTR`, `WAERS`, `KOSTL`, `PRCTR`, `LIFNR`, `KUNNR`, `VBUND`, `SGTXT`).
-4. **Ground-Truth Audit Manifest (`ground_truth_manifest.json` & `.parquet`)**: Complete mapping of every injected anomaly, affected document numbers, line items, mathematical parameters, and forensic signals.
-5. **Cryptographic SHA-256 Digest (`.sha256`)**: Detached checksums verifying dataset integrity.
+5. **Ground-Truth Audit Manifest (`ground_truth_manifest.json` & `.parquet`)**: Complete mapping of every injected anomaly, affected document numbers, line items, mathematical parameters, and forensic signals.
+6. **Cryptographic SHA-256 Digest (`.sha256`)**: Detached checksums verifying dataset integrity.
 
 ---
 
@@ -252,26 +308,30 @@ The framework includes built-in detection algorithms evaluating datasets against
 
 ## Automated Test Suite
 
-The codebase includes an automated test suite with **53 comprehensive unit and integration tests**:
+The codebase includes an automated test suite with **75 comprehensive unit and integration tests**:
 
 ```bash
 python -m pytest -v
 ```
 
 ```
-tests/test_anomalies.py ......                     [ 11%]
+tests/test_acdoca.py ....                          [  5%]
+tests/test_anomalies.py ......                     [ 13%]
 tests/test_audit_metrics.py .....                  [ 20%]
-tests/test_cli.py ..                              [ 24%]
-tests/test_coa_models.py ...                       [ 30%]
-tests/test_cycles.py ....                          [ 37%]
-tests/test_edge_cases.py .....                     [ 47%]
-tests/test_exporters.py ....                       [ 54%]
-tests/test_generators.py ....                      [ 62%]
-tests/test_gui.py .....                            [ 71%]
-tests/test_invariants.py ....                      [ 79%]
-tests/test_models.py ...........                  [100%]
+tests/test_cli.py ..                               [ 22%]
+tests/test_coa_models.py ...                       [ 26%]
+tests/test_cycles.py ....                          [ 32%]
+tests/test_edge_cases.py .....                     [ 38%]
+tests/test_exporters.py ....                       [ 44%]
+tests/test_generators.py ....                      [ 49%]
+tests/test_gui.py .....                            [ 56%]
+tests/test_invariants.py ....                      [ 61%]
+tests/test_macro_calendar.py .....                 [ 68%]
+tests/test_models.py ...........                   [ 82%]
+tests/test_multi_currency.py ........              [ 93%]
+tests/test_streaming.py .....                     [100%]
 
-============================= 53 passed in 2.35s ==============================
+============================= 75 passed in 2.39s ==============================
 ```
 
 ---
@@ -288,9 +348,12 @@ Synthetic-General-Ledger-Fuzzer/
 │   ├── models/
 │   │   ├── coa.py                 # Chart of Accounts, Account, NormalBalance
 │   │   ├── journal.py             # LineItem, JournalEntry, Batch (Decimal cent logic)
+│   │   ├── currency.py            # Currency enum & ExchangeRateProvider (GBM/OU drift)
 │   │   └── manifest.py            # AnomalyRecord, GroundTruthManifest
 │   ├── generators/
 │   │   ├── distributions.py       # Benford, LogNormal, BusinessCalendar
+│   │   ├── macro_calendar.py      # Macro-economic calendar & quarterly seasonality
+│   │   ├── streaming_engine.py    # Chunked synthesis engine (Multi-currency & streaming)
 │   │   ├── p2p_cycle.py           # Procure-to-Pay generator (WE, KR, KZ)
 │   │   ├── o2c_cycle.py           # Order-to-Cash generator (WA, DR, DZ)
 │   │   ├── r2r_cycle.py           # Record-to-Report (Depreciation, Payroll, Accrual)
@@ -308,10 +371,12 @@ Synthetic-General-Ledger-Fuzzer/
 │   │   └── audit_metrics.py       # SOX-404 automated audit detection algorithms
 │   └── exporters/
 │       ├── parquet_exporter.py    # PyArrow Decimal128 Parquet exporter
+│       ├── streaming_parquet.py   # Zero-OOM streaming row-group Parquet writer
+│       ├── acdoca_exporter.py     # SAP S/4HANA Universal Journal 50+ col exporter
 │       ├── csv_exporter.py        # RFC 4180 CSV exporter
 │       ├── sap_bseg_exporter.py   # SAP BKPF / BSEG table exporter
 │       └── manifest_exporter.py   # JSON & Parquet manifest exporter
-├── tests/                         # 53 automated unit and integration tests
+├── tests/                         # 75 automated unit and integration tests
 ├── pyproject.toml                 # Project configuration and dependencies
 ├── run.bat                        # Windows 1-click launcher
 ├── run.py                         # Cross-platform interactive launcher

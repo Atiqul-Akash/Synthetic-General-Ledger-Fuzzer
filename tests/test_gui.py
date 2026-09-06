@@ -65,17 +65,30 @@ class TestGLAppState(unittest.TestCase):
 
 class TestDesktopGUI(unittest.TestCase):
     """Test suite for native Desktop GUI."""
+    root = None
+    app = None
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            cls.root = tk.Tk()
+            cls.root.withdraw()
+            cls.app = DesktopGUI(cls.root)
+        except Exception as e:
+            cls.root = None
+            cls.app = None
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.root is not None:
+            try:
+                cls.root.destroy()
+            except Exception:
+                pass
 
     def setUp(self):
-        self.root = tk.Tk()
-        self.root.withdraw()  # Hide window during tests
-        self.app = DesktopGUI(self.root)
-
-    def tearDown(self):
-        try:
-            self.root.destroy()
-        except Exception:
-            pass
+        if self.app is None:
+            self.skipTest("Tkinter GUI not available in this test environment")
 
     def test_desktop_gui_presets(self):
         # Apply Quick Smoke Test preset

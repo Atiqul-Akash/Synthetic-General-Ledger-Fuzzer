@@ -97,6 +97,7 @@ class ChartOfAccounts(BaseModel):
             Account(code="41000", name="Service & Consulting Revenue", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT),
             Account(code="42000", name="Intercompany Revenue - Management Fees", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT, is_intercompany=True),
             Account(code="43000", name="Sales Discounts Allowed", account_type=AccountType.REVENUE, normal_balance=NormalBalance.DEBIT), # Contra revenue
+            Account(code="47000", name="Realized Foreign Exchange Gain", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT),
 
             # 5xxxx: Cost of Goods Sold (Debit Normal)
             Account(code="50000", name="Cost of Goods Sold - Materials", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
@@ -113,6 +114,7 @@ class ChartOfAccounts(BaseModel):
             Account(code="64000", name="Legal & Professional Fees", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
             Account(code="65000", name="Depreciation Expense", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
             Account(code="66000", name="Travel & Entertainment Expense", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
+            Account(code="67000", name="Realized Foreign Exchange Loss", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
             Account(code="69000", name="Miscellaneous Operating Expense", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
 
             # 9xxxx: Suspense & Intercompany Clearing

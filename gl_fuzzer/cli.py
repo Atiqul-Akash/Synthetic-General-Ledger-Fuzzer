@@ -26,6 +26,9 @@ from gl_fuzzer.exporters.parquet_exporter import ParquetGLExporter
 from gl_fuzzer.exporters.csv_exporter import CSVGLExporter
 from gl_fuzzer.exporters.sap_bseg_exporter import SAPBSEGExporter
 from gl_fuzzer.exporters.manifest_exporter import ManifestExporter
+from gl_fuzzer.exporters.acdoca_exporter import SAPACDOCAExporter
+from gl_fuzzer.exporters.streaming_parquet import StreamingParquetExporter
+from gl_fuzzer.generators.streaming_engine import ChunkedSynthesisEngine
 
 app = typer.Typer(help="Synthetic General Ledger Fuzzer & Calibrated Anomaly Engine | Made with <3 by Atiqul-Akash (GitHub: Atiqul-Akash)")
 console = Console()
@@ -37,7 +40,11 @@ def generate(
     anomaly_rate: float = typer.Option(0.05, "--anomaly-rate", "-r", help="Target anomaly injection rate (0.0 to 1.0)"),
     seed: Optional[int] = typer.Option(42, "--seed", "-s", help="Random seed for reproducible generation"),
     out_dir: Path = typer.Option(Path("./output"), "--out-dir", "-o", help="Directory for exported artifacts"),
-    export_formats: str = typer.Option("parquet,csv,sap", "--export-formats", "-f", help="Comma-separated formats: parquet,csv,sap"),
+    export_formats: str = typer.Option("parquet,csv,sap", "--export-formats", "-f", help="Comma-separated formats: parquet,csv,sap,acdoca"),
+    acdoca: bool = typer.Option(False, "--acdoca", help="Export SAP S/4HANA Universal Journal (ACDOCA) 50+ column format"),
+    multi_currency: bool = typer.Option(False, "--multi-currency", help="Enable ASC 830 / IAS 21 multi-currency triangulation"),
+    seasonality: bool = typer.Option(False, "--seasonality", help="Enable macro-economic quarter-end hockey stick and seasonality"),
+    stream_chunks: Optional[int] = typer.Option(None, "--stream-chunks", help="Stream generation in chunks to bound RAM usage"),
 ):
     """Synthesizes balanced GL batches, injects calibrated micro-anomalies, and exports dual artifacts."""
     console.print(Panel.fit(
@@ -48,17 +55,33 @@ def generate(
 
     start_time = time.perf_counter()
     coa = ChartOfAccounts.create_default()
-    engine = BaseSynthesisEngine(coa=coa, seed=seed)
 
-    # 1. Generate Base Clean Entries
-    console.print(f"[green][Step 1] Synthesizing {count:,} clean baseline journal entries across P2P, O2C, and R2R...[/green]")
-    batch_id = f"BATCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    batch = engine.generate_batch(batch_id=batch_id, target_entry_count=count)
+    if multi_currency or seasonality or stream_chunks:
+        console.print(f"[green][Step 1] Synthesizing {count:,} baseline journal entries via Chunked Engine (Multi-Currency={multi_currency}, Seasonality={seasonality})...[/green]")
+        engine = ChunkedSynthesisEngine(
+            coa=coa,
+            seed=seed,
+            multi_currency=multi_currency,
+            macro_seasonality=seasonality,
+        )
+        chunk_sz = stream_chunks or min(count, 10000)
+        batch_entries = []
+        anomaly_records = []
+        for c_entries, c_anoms in engine.stream_chunks(total_entries=count, chunk_size=chunk_sz, anomaly_rate=anomaly_rate):
+            batch_entries.extend(c_entries)
+            anomaly_records.extend(c_anoms)
 
-    # 2. Inject Calibrated Micro-Anomalies
-    console.print(f"[yellow][Step 2] Injecting calibrated micro-anomalies at target rate {anomaly_rate:.1%}...[/yellow]")
-    pipeline = AnomalyPipeline(coa=coa, seed=seed)
-    anomaly_records = pipeline.inject_anomalies(batch=batch, overall_anomaly_rate=anomaly_rate)
+        batch_id = f"BATCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        batch = Batch(batch_id=batch_id, created_at=datetime.now().isoformat(), entries=batch_entries)
+    else:
+        engine = BaseSynthesisEngine(coa=coa, seed=seed)
+        console.print(f"[green][Step 1] Synthesizing {count:,} clean baseline journal entries across P2P, O2C, and R2R...[/green]")
+        batch_id = f"BATCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        batch = engine.generate_batch(batch_id=batch_id, target_entry_count=count)
+
+        console.print(f"[yellow][Step 2] Injecting calibrated micro-anomalies at target rate {anomaly_rate:.1%}...[/yellow]")
+        pipeline = AnomalyPipeline(coa=coa, seed=seed)
+        anomaly_records = pipeline.inject_anomalies(batch=batch, overall_anomaly_rate=anomaly_rate)
 
     # 3. Mathematical Invariant Verification Gate
     console.print("[blue][Step 3] Invariant Gate: Verifying Debits == Credits across all batches and entries...[/blue]")
@@ -120,6 +143,16 @@ def generate(
         sap_results = SAPBSEGExporter.export(batch.entries, out_dir / "sap")
         for table_name, (sp_path, s_hash) in sap_results.items():
             export_summary.append((f"SAP {table_name}", str(sp_path), s_hash[:16] + "..."))
+
+    # SAP S/4HANA ACDOCA Universal Journal Format
+    if acdoca or "acdoca" in formats:
+        acdoca_pq_path = out_dir / "acdoca_feed.parquet"
+        _, a_p_hash = SAPACDOCAExporter.export_parquet(batch.entries, acdoca_pq_path)
+        export_summary.append(("SAP ACDOCA (Parquet)", str(acdoca_pq_path), a_p_hash[:16] + "..."))
+
+        acdoca_csv_path = out_dir / "acdoca_feed.csv"
+        _, a_c_hash = SAPACDOCAExporter.export_csv(batch.entries, acdoca_csv_path)
+        export_summary.append(("SAP ACDOCA (CSV)", str(acdoca_csv_path), a_c_hash[:16] + "..."))
 
     # Export Manifests (JSON & Parquet)
     json_manifest_path = out_dir / "ground_truth_manifest.json"
@@ -347,79 +380,170 @@ def _load_entries_from_file(path: Path) -> list[JournalEntry]:
     else:
         raise ValueError(f"Unsupported file format: {path.suffix}")
 
-    # Group lines by entry_id
+    # Group lines by entry_id / BELNR
+    first_row = pydict[0] if pydict else {}
+    is_acdoca = "BELNR" in first_row and "DOCLN" in first_row and "WSL" in first_row
+
     entries_map = {}
     for row in pydict:
-        eid = row["entry_id"]
-        if eid not in entries_map:
-            doc_type_val = row["document_type"]
-            try:
-                dtype = DocumentType(doc_type_val)
-            except Exception:
-                dtype = DocumentType.SA
+        if is_acdoca:
+            eid = row["BELNR"]
+            if eid not in entries_map:
+                doc_type_val = row.get("BLART", "SA")
+                try:
+                    dtype = DocumentType(doc_type_val)
+                except Exception:
+                    dtype = DocumentType.SA
 
-            is_anom_raw = row.get("is_anomaly", False)
-            if isinstance(is_anom_raw, str):
-                is_anomaly_val = is_anom_raw.strip().lower() in ("true", "1", "yes")
+                is_anom_raw = row.get("IS_ANOMALY", False)
+                if isinstance(is_anom_raw, str):
+                    is_anomaly_val = is_anom_raw.strip().lower() in ("true", "1", "yes")
+                else:
+                    is_anomaly_val = bool(is_anom_raw)
+
+                anom_ids = [x for x in str(row.get("ANOMALY_IDS", "")).split(",") if x] if is_anomaly_val else []
+                bdate_raw = str(row.get("BUDAT", "20260101"))
+                p_date = f"{bdate_raw[:4]}-{bdate_raw[4:6]}-{bdate_raw[6:8]}" if len(bdate_raw) == 8 else bdate_raw
+
+                entries_map[eid] = {
+                    "header": {
+                        "entry_id": eid,
+                        "batch_id": f"BATCH_{row.get('GJAHR', 2026)}",
+                        "company_code": row.get("RBUKRS", "1000"),
+                        "fiscal_year": int(row.get("GJAHR", 2026)),
+                        "fiscal_period": int(row.get("POPER", 9)),
+                        "document_type": dtype,
+                        "document_number": eid,
+                        "posting_date": p_date,
+                        "document_date": p_date,
+                        "entry_time": row.get("CPUTM", "09:30:00"),
+                        "created_at": f"{p_date}T{row.get('CPUTM', '09:30:00')}Z",
+                        "created_by": row.get("USNAM", "SYSTEM"),
+                        "reference": row.get("XBLNR", ""),
+                        "header_text": row.get("BKTXT", ""),
+                        "business_cycle": row.get("BUSINESS_CYCLE", "R2R"),
+                        "is_anomaly": is_anomaly_val,
+                        "anomaly_ids": anom_ids,
+                    },
+                    "lines": [],
+                }
+
+            dc_val = row.get("DRCRK", "S")
+            dc = DebitCredit.DEBIT if dc_val.upper() in ("DEBIT", "S") else DebitCredit.CREDIT
+
+            raw_amount = row["WSL"]
+            if isinstance(raw_amount, Decimal):
+                amount_val = raw_amount
+            elif isinstance(raw_amount, float):
+                amount_val = Decimal(f"{raw_amount:.2f}")
             else:
-                is_anomaly_val = bool(is_anom_raw)
+                amount_val = Decimal(str(raw_amount))
 
-            anom_ids = [x for x in str(row.get("anomaly_ids", "")).split(",") if x] if is_anomaly_val else []
-
-            entries_map[eid] = {
-                "header": {
-                    "entry_id": eid,
-                    "batch_id": row["batch_id"],
-                    "company_code": row["company_code"],
-                    "fiscal_year": int(row["fiscal_year"]),
-                    "fiscal_period": int(row["fiscal_period"]),
-                    "document_type": dtype,
-                    "document_number": row["document_number"],
-                    "posting_date": row["posting_date"],
-                    "document_date": row["document_date"],
-                    "entry_time": row["entry_time"],
-                    "created_at": row["created_at"],
-                    "created_by": row["created_by"],
-                    "reference": row["reference"],
-                    "header_text": row["header_text"],
-                    "business_cycle": row["business_cycle"],
-                    "is_anomaly": is_anomaly_val,
-                    "anomaly_ids": anom_ids,
-                },
-                "lines": [],
-            }
-
-        dc_val = row["debit_credit"]
-        dc = DebitCredit.DEBIT if dc_val.upper() in ("DEBIT", "S") else DebitCredit.CREDIT
-
-        raw_amount = row["amount"]
-        if isinstance(raw_amount, Decimal):
-            amount_val = raw_amount
-        elif isinstance(raw_amount, float):
-            amount_val = Decimal(f"{raw_amount:.2f}")
-        else:
-            amount_val = Decimal(str(raw_amount))
-
-        entries_map[eid]["lines"].append(
-            LineItem(
-                line_id=row["line_id"],
-                entry_id=eid,
-                line_number=int(row["line_number"]),
-                account_code=row["account_code"],
-                account_name=row.get("account_name", ""),
-                debit_credit=dc,
-                amount=amount_val,
-                currency=row.get("currency", "USD"),
-                posting_key=row.get("posting_key", "40"),
-                cost_center=row.get("cost_center") or None,
-                profit_center=row.get("profit_center") or None,
-                vendor_id=row.get("vendor_id") or None,
-                customer_id=row.get("customer_id") or None,
-                trading_partner=row.get("trading_partner") or None,
-                line_text=row.get("line_text", ""),
-                tax_code=row.get("tax_code") or None,
+            entries_map[eid]["lines"].append(
+                LineItem(
+                    line_id=f"{eid}-{row['DOCLN']}",
+                    entry_id=eid,
+                    line_number=int(row["DOCLN"]),
+                    account_code=row["RACCT"],
+                    account_name=row.get("TXT50", ""),
+                    debit_credit=dc,
+                    amount=amount_val,
+                    currency=row.get("RWCUR", "USD"),
+                    posting_key=row.get("BSCHL", "40"),
+                    cost_center=row.get("RCNTR") or None,
+                    profit_center=row.get("PRCTR") or None,
+                    vendor_id=row.get("LIFNR") or None,
+                    customer_id=row.get("KUNNR") or None,
+                    trading_partner=row.get("VBUND") or None,
+                    line_text=row.get("SGTXT", ""),
+                    tax_code=row.get("MWSKZ") or None,
+                    amount_local=Decimal(str(row["HSL"])) if row.get("HSL") is not None else amount_val,
+                    currency_local=row.get("RHCUR", "USD"),
+                    amount_group=Decimal(str(row["KSL"])) if row.get("KSL") is not None else amount_val,
+                    currency_group=row.get("RKCUR", "USD"),
+                    ledger_group=row.get("RLDNR", "0L"),
+                    segment=row.get("SEGMENT") or None,
+                    functional_area=row.get("FKBER") or None,
+                    wbs_element=row.get("PS_POSID") or None,
+                    asset_number=row.get("ANLN1") or None,
+                    asset_subnumber=row.get("ANLN2") or None,
+                    material_number=row.get("MATNR") or None,
+                    plant=row.get("WERKS") or None,
+                    tax_jurisdiction=row.get("TXJCD") or None,
+                    clearing_doc=row.get("AUGBL") or None,
+                )
             )
-        )
+        else:
+            eid = row["entry_id"]
+            if eid not in entries_map:
+                doc_type_val = row["document_type"]
+                try:
+                    dtype = DocumentType(doc_type_val)
+                except Exception:
+                    dtype = DocumentType.SA
+
+                is_anom_raw = row.get("is_anomaly", False)
+                if isinstance(is_anom_raw, str):
+                    is_anomaly_val = is_anom_raw.strip().lower() in ("true", "1", "yes")
+                else:
+                    is_anomaly_val = bool(is_anom_raw)
+
+                anom_ids = [x for x in str(row.get("anomaly_ids", "")).split(",") if x] if is_anomaly_val else []
+
+                entries_map[eid] = {
+                    "header": {
+                        "entry_id": eid,
+                        "batch_id": row["batch_id"],
+                        "company_code": row["company_code"],
+                        "fiscal_year": int(row["fiscal_year"]),
+                        "fiscal_period": int(row["fiscal_period"]),
+                        "document_type": dtype,
+                        "document_number": row["document_number"],
+                        "posting_date": row["posting_date"],
+                        "document_date": row["document_date"],
+                        "entry_time": row["entry_time"],
+                        "created_at": row["created_at"],
+                        "created_by": row["created_by"],
+                        "reference": row["reference"],
+                        "header_text": row["header_text"],
+                        "business_cycle": row["business_cycle"],
+                        "is_anomaly": is_anomaly_val,
+                        "anomaly_ids": anom_ids,
+                    },
+                    "lines": [],
+                }
+
+            dc_val = row["debit_credit"]
+            dc = DebitCredit.DEBIT if dc_val.upper() in ("DEBIT", "S") else DebitCredit.CREDIT
+
+            raw_amount = row["amount"]
+            if isinstance(raw_amount, Decimal):
+                amount_val = raw_amount
+            elif isinstance(raw_amount, float):
+                amount_val = Decimal(f"{raw_amount:.2f}")
+            else:
+                amount_val = Decimal(str(raw_amount))
+
+            entries_map[eid]["lines"].append(
+                LineItem(
+                    line_id=row["line_id"],
+                    entry_id=eid,
+                    line_number=int(row["line_number"]),
+                    account_code=row["account_code"],
+                    account_name=row.get("account_name", ""),
+                    debit_credit=dc,
+                    amount=amount_val,
+                    currency=row.get("currency", "USD"),
+                    posting_key=row.get("posting_key", "40"),
+                    cost_center=row.get("cost_center") or None,
+                    profit_center=row.get("profit_center") or None,
+                    vendor_id=row.get("vendor_id") or None,
+                    customer_id=row.get("customer_id") or None,
+                    trading_partner=row.get("trading_partner") or None,
+                    line_text=row.get("line_text", ""),
+                    tax_code=row.get("tax_code") or None,
+                )
+            )
 
     result = []
     for data in entries_map.values():
