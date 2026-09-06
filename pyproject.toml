@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synthetic-general-ledger-fuzzer"
+version = "1.0.0"
+description = "Enterprise-Grade Synthetic General Ledger (GL) Fuzzer and Calibrated Anomaly Engine"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Atiqul-Akash", email = "atiqul_akash@outlook.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "pyarrow>=14.0.0",
+    "polars>=0.20.0",
+    "pydantic>=2.5.0",
+    "scipy>=1.11.0",
+    "rich>=13.0.0",
+    "typer>=0.9.0",
+    "numpy>=1.24.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Atiqul-Akash/Synthetic-General-Ledger-Fuzzer"
+Repository = "https://github.com/Atiqul-Akash/Synthetic-General-Ledger-Fuzzer"
+"Bug Tracker" = "https://github.com/Atiqul-Akash/Synthetic-General-Ledger-Fuzzer/issues"
+
+[project.scripts]
+gl-fuzzer = "gl_fuzzer.cli:app"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
