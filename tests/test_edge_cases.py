@@ -462,3 +462,178 @@ def test_sap_bseg_exporter_none_guards(tmp_path: Path):
     assert "BSEG" in results
     assert results["BKPF"][0].exists()
     assert results["BSEG"][0].exists()
+
+
+def test_benford_synthesize_amount_never_exceeds_digit():
+    """Verify that synthesize_amount_with_first_digit never overflows into the next leading digit."""
+    from gl_fuzzer.generators.distributions import BenfordDistribution
+    rng = np.random.default_rng(12345)
+    for digit in range(1, 10):
+        for mag in range(2, 6):
+            for _ in range(50):
+                amt = BenfordDistribution.synthesize_amount_with_first_digit(
+                    first_digit=digit, magnitude_min=mag, magnitude_max=mag, rng=rng
+                )
+                amt_str = str(amt)
+                assert int(amt_str[0]) == digit, f"Expected leading digit {digit}, got {amt_str}"
+
+
+def test_subledger_three_way_match_overinvoicing_does_not_overclear():
+    """Verify that over-invoiced quantities cap GR/IR clearing to received_qty, preserving balance and bridge."""
+    from gl_fuzzer.subledgers.three_way_match import ThreeWayMatchingEngine, MatchResult
+    twm = ThreeWayMatchingEngine()
+    po = twm.create_purchase_order(
+        vendor_id="VEND_01",
+        material_number="MAT-1001",
+        ordered_qty=Decimal("10.00"),
+        po_unit_price=Decimal("45.00"),
+    )
+    gr, we_entry = twm.post_goods_receipt(po, received_qty=Decimal("10.00"))
+    assert we_entry.is_balanced is True
+
+    # Over-invoiced: 15 units billed instead of 10
+    ir, re_entry, match_st = twm.post_invoice_receipt(
+        po, gr, invoiced_qty=Decimal("15.00"), invoiced_unit_price=Decimal("50.00")
+    )
+    assert match_st == MatchResult.DUAL_VARIANCE
+    assert re_entry.is_balanced is True
+
+    gr_leg = [l for l in re_entry.lines if l.account_code == "21150"][0]
+    # GR/IR clearing should only clear the 10 units received ($450.00), not 15 ($675.00)
+    assert gr_leg.amount == Decimal("450.00")
+    ap_leg = [l for l in re_entry.lines if l.account_code == "20000"][0]
+    assert ap_leg.amount == Decimal("750.00")  # 15 * $50
+
+
+def test_subledger_order_fulfillment_overdelivery_capped_billing():
+    """Verify that billing quantity is capped to ordered_qty if delivery attempts over-shipping."""
+    from gl_fuzzer.subledgers.order_fulfillment import SalesOrderFulfillmentEngine, DeliveryWaybill
+    sfe = SalesOrderFulfillmentEngine()
+    so = sfe.create_sales_order(
+        customer_id="CUST_01",
+        material_number="MAT-1001",
+        ordered_qty=Decimal("10.00"),
+        unit_price=Decimal("100.00"),
+    )
+    # Simulate delivery of 15 units
+    waybill = DeliveryWaybill(
+        waybill_number="WA_TEST_01",
+        so_number=so.so_number,
+        shipped_qty=Decimal("15.00"),
+        cogs_valuation=Decimal("675.00"),
+        shipping_date="2026-04-05",
+    )
+    rv = sfe.post_billing_document(so, waybill)
+    assert rv.is_balanced is True
+    # Billed amount capped at 10 * 100 = 1000.00
+    assert rv.total_debits == Decimal("1000.00")
+
+
+def test_mock_erp_mixed_currency_rejection():
+    """Verify that MockERPConnector rejects entries with mismatched line-item currencies."""
+    from gl_fuzzer.connectors.mock_erp import MockERPConnector
+    connector = MockERPConnector()
+    connector.connect()
+
+    l1 = LineItem(line_id="L1", entry_id="E1", line_number=1, account_code="10100",
+                  debit_credit=DebitCredit.DEBIT, amount=Decimal("100.00"), currency="USD")
+    l2 = LineItem(line_id="L2", entry_id="E1", line_number=2, account_code="20000",
+                  debit_credit=DebitCredit.CREDIT, amount=Decimal("100.00"), currency="EUR")
+    entry = JournalEntry(
+        entry_id="E1", batch_id="B1", company_code="1000", fiscal_year=2026, fiscal_period=1,
+        document_number="100001", posting_date="2026-01-15", document_date="2026-01-15",
+        created_at="2026-01-15T10:00:00Z", lines=[l1, l2],
+    )
+    res = connector.post_journal_entry(entry)
+    assert res.success is False
+    assert res.error_code == "SAP_F5_MIXED_CURRENCY"
+
+
+def test_mock_erp_multi_open_item_clearing():
+    """Verify that MockERPConnector iterates and clears multiple open items on a single payment."""
+    from gl_fuzzer.connectors.mock_erp import MockERPConnector
+    connector = MockERPConnector()
+    connector.connect()
+
+    def _post_kr(doc_num, amt):
+        l1 = LineItem(line_id=f"{doc_num}_1", entry_id=doc_num, line_number=1, account_code="14000",
+                      debit_credit=DebitCredit.DEBIT, amount=amt)
+        l2 = LineItem(line_id=f"{doc_num}_2", entry_id=doc_num, line_number=2, account_code="20000",
+                      debit_credit=DebitCredit.CREDIT, amount=amt, vendor_id="VEND_MULTI")
+        e = JournalEntry(entry_id=doc_num, batch_id="B1", company_code="1000", fiscal_year=2026, fiscal_period=1,
+                         document_type=DocumentType.KR, document_number=doc_num, posting_date="2026-01-15",
+                         document_date="2026-01-15", created_at="2026-01-15T10:00:00Z", lines=[l1, l2])
+        return connector.post_journal_entry(e)
+
+    _post_kr("KR_01", Decimal("300.00"))
+    _post_kr("KR_02", Decimal("400.00"))
+
+    open_items = connector.fetch_open_items("1000")
+    assert len(open_items) == 2
+
+    # Single payment of $700.00
+    l_kz1 = LineItem(line_id="KZ_1", entry_id="KZ_DOC", line_number=1, account_code="20000",
+                     debit_credit=DebitCredit.DEBIT, amount=Decimal("700.00"), vendor_id="VEND_MULTI")
+    l_kz2 = LineItem(line_id="KZ_2", entry_id="KZ_DOC", line_number=2, account_code="10100",
+                     debit_credit=DebitCredit.CREDIT, amount=Decimal("700.00"))
+    kz = JournalEntry(entry_id="KZ_DOC", batch_id="B1", company_code="1000", fiscal_year=2026, fiscal_period=1,
+                      document_type=DocumentType.KZ, document_number="KZ_DOC", posting_date="2026-01-20",
+                      document_date="2026-01-20", created_at="2026-01-20T10:00:00Z", lines=[l_kz1, l_kz2])
+    res = connector.post_journal_entry(kz)
+    assert res.success is True
+
+    # Both open items must be cleared
+    open_items_after = connector.fetch_open_items("1000")
+    assert len(open_items_after) == 0
+
+
+def test_mdm_tamper_vendor_bank_model_copy():
+    """Verify that BankRoutingTamperingMutator does not mutate original VendorMaster object in place."""
+    from gl_fuzzer.mdm.models import VendorMaster
+    from gl_fuzzer.mdm.mutators import BankRoutingTamperingMutator
+    orig_vendor = VendorMaster(
+        vendor_id="VEND_IMMUTABLE",
+        name="Immutable Tech Ltd",
+        tax_id="12-9999999",
+        bank_routing_number="021000021",
+        bank_account_number="123456789",
+    )
+    tampered, record = BankRoutingTamperingMutator.mutate(orig_vendor, tamper_date="2026-04-14")
+    assert tampered.bank_routing_number != orig_vendor.bank_routing_number
+    assert orig_vendor.bank_routing_number == "021000021"
+    assert orig_vendor.bank_account_number == "123456789"
+
+
+def test_remediation_strict_sql_balance():
+    """Verify that RemediationAdvisor enforces strict zero-sum SQL balance equality."""
+    from gl_fuzzer.remediation.engine import RemediationAdvisor
+    patch = RemediationAdvisor.advise_for_finding({"finding_type": "IMBALANCE", "description": "Debits do not match credits"})
+    assert "CHECK (total_debits = total_credits)" in patch.code_or_rule
+    assert "0.0001" not in patch.code_or_rule
+
+
+def test_pdf_invoice_courier_fonts(tmp_path: Path):
+    """Verify that FinancialPDFGenerator outputs Courier monospace fonts for exact column alignment."""
+    from gl_fuzzer.documents.models import SyntheticInvoiceData, DocumentItemLine
+    from gl_fuzzer.documents.pdf_generator import FinancialPDFGenerator
+    gen = FinancialPDFGenerator()
+    inv_data = SyntheticInvoiceData(
+        invoice_number="INV-FONT-TEST",
+        invoice_date="2026-03-15",
+        vendor_name="Test Monospace Corp",
+        vendor_tax_id="12-3456781",
+        vendor_routing="021000021",
+        vendor_account="123456789",
+        customer_name="Client Corp",
+        subtotal=Decimal("100.00"),
+        total_amount=Decimal("100.00"),
+        items=[DocumentItemLine(item_no=1, description="Part A", quantity=Decimal("1"),
+                                unit_price=Decimal("100.00"), total_price=Decimal("100.00"))]
+    )
+    out_pdf = tmp_path / "font_test.pdf"
+    gen.generate_invoice_pdf(inv_data, out_pdf)
+    content = out_pdf.read_bytes()
+    assert b"/BaseFont /Courier-Bold" in content
+    assert b"/BaseFont /Courier" in content
+    assert b"Helvetica" not in content
+

@@ -83,7 +83,7 @@ class RelationalLedgerTarget(ERPExecutionTarget):
         payload_hash = hashlib.sha256(entry.model_dump_json().encode("utf-8")).hexdigest()
 
         cur = self.conn.cursor()
-        savepoint_name = f"sp_{entry.document_number.replace('-', '_')}"
+        savepoint_name = f"sp_{hashlib.md5(entry.document_number.encode('utf-8', errors='replace')).hexdigest()}"
 
         try:
             cur.execute(f"SAVEPOINT {savepoint_name};")
@@ -133,11 +133,12 @@ class RelationalLedgerTarget(ERPExecutionTarget):
                         line.line_number,
                         line.account_code,
                         line.debit_credit.value,
-                        float(line.amount),
+                        str(line.amount),
                         line.currency,
                         line.cost_center,
                     ),
                 )
+
 
             cur.execute(f"RELEASE SAVEPOINT {savepoint_name};")
             self.conn.commit()

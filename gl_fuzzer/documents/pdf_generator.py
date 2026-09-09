@@ -99,7 +99,7 @@ class MinimalPDFBuilder:
             "ET",
         ])
 
-        stream_data = "\n".join(cmds).encode("latin1")
+        stream_data = "\n".join(cmds).encode("latin1", errors="replace")
         stream_len = len(stream_data)
 
         # PDF Object Assembly
@@ -107,8 +107,8 @@ class MinimalPDFBuilder:
         # Obj 2: Pages
         # Obj 3: Page
         # Obj 4: Content Stream
-        # Obj 5: Font Bold
-        # Obj 6: Font Regular
+        # Obj 5: Font Bold (Courier-Bold for exact monospace column alignment)
+        # Obj 6: Font Regular (Courier)
         obj1 = b"<< /Type /Catalog /Pages 2 0 R >>"
         obj2 = b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>"
         obj3 = (
@@ -116,8 +116,8 @@ class MinimalPDFBuilder:
             b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>"
         )
         obj4 = f"<< /Length {stream_len} >>\nstream\n".encode("latin1") + stream_data + b"\nendstream"
-        obj5 = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"
-        obj6 = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+        obj5 = b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>"
+        obj6 = b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>"
 
         objs = [obj1, obj2, obj3, obj4, obj5, obj6]
 

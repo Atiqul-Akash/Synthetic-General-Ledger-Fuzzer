@@ -49,12 +49,11 @@ class BenfordDistribution:
         if rng is None:
             rng = np.random.default_rng()
         magnitude = rng.integers(magnitude_min, magnitude_max + 1)
-        # e.g., if first_digit is 8 and magnitude is 3, amount is between 800.00 and 899.99
-        low = first_digit * (10 ** (magnitude - 1))
-        high = (first_digit + 1) * (10 ** (magnitude - 1)) - 0.01
-        raw_val = rng.uniform(low, high)
-        cents = Decimal(f"{raw_val:.2f}")
-        return cents
+        low_cents = first_digit * (10 ** (magnitude - 1)) * 100
+        high_cents = ((first_digit + 1) * (10 ** (magnitude - 1)) * 100) - 1
+        cents_int = int(rng.integers(low_cents, high_cents + 1))
+        return (Decimal(cents_int) / Decimal(100)).quantize(Decimal("0.01"))
+
 
 
 class LogNormalAmountGenerator:

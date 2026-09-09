@@ -151,7 +151,6 @@ class WarehouseInventory:
                 f"Insufficient inventory for {material_number} in bin {bin_id}. Available: {bin_loc.qty_on_hand}, Requested: {qty_dec}"
             )
 
-        bin_loc.qty_on_hand -= qty_dec
         unit_cost = mat.moving_avg_price
         total_val = (qty_dec * unit_cost).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
@@ -167,6 +166,7 @@ class WarehouseInventory:
             bin_id=bin_id,
             timestamp=datetime.now().isoformat(),
         )
+        bin_loc.qty_on_hand -= qty_dec
         self.movements.append(m)
         return m
 

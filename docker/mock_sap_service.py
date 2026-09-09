@@ -1,5 +1,6 @@
 """Lightweight Mock SAP S/4HANA OData V4 Gateway container service."""
 
+import hashlib
 import http.server
 import json
 import socketserver
@@ -37,7 +38,7 @@ class SAPODataHandler(http.server.BaseHTTPRequestHandler):
                     "DocumentDate": "2026-03-15",
                     "PostingDate": "2026-03-15",
                     "AccountingDocumentType": "SA",
-                    "TotalGrossAmountInTransacCrcy": 15000.00,
+                    "TotalGrossAmountInTransacCrcy": "15000.00",
                     "TransactionCurrency": "USD",
                 }
             ],
@@ -52,7 +53,8 @@ class SAPODataHandler(http.server.BaseHTTPRequestHandler):
         except Exception:
             payload = {}
 
-        doc_num = "1000" + str(hash(body) % 900000 + 100000)
+        doc_hash = int(hashlib.md5(body).hexdigest()[:6], 16)
+        doc_num = "1000" + str(doc_hash % 900000 + 100000)
         self.send_response(201)
         self.send_header("Content-Type", "application/json")
         self.end_headers()

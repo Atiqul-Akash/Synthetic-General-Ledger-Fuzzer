@@ -39,8 +39,8 @@ class MultimodalMismatchInjector:
             DocumentItemLine(
                 item_no=1,
                 description="Industrial Equipment Subassembly Components",
-                quantity=Decimal("10"),
-                unit_price=(total_amt / Decimal("10")).quantize(Decimal("0.01")),
+                quantity=Decimal("1"),
+                unit_price=total_amt,
                 total_price=total_amt,
             )
         ]

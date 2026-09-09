@@ -63,5 +63,7 @@ services:
       - SAP_ODATA_HOST=mock-sap-gateway
       - SAP_ODATA_PORT=8000
     depends_on:
-      - redpanda
-      - mock-sap-gateway
+      redpanda:
+        condition: service_healthy
+      mock-sap-gateway:
+        condition: service_healthy

@@ -7,8 +7,9 @@ characteristic of fabricated invoices, duplicate billing, or kickback schemes.
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import List
+
 import uuid
 
 from gl_fuzzer.models.journal import Batch
@@ -70,9 +71,12 @@ class BenfordSkewMutator(BaseAnomalyMutator):
             for line in entry.lines:
                 line.amount = new_amount
                 if line.amount_local is not None:
-                    line.amount_local = new_amount
+                    rate_loc = getattr(line, "exchange_rate_local", Decimal("1.000000")) or Decimal("1.000000")
+                    line.amount_local = (new_amount * rate_loc).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                 if line.amount_group is not None:
-                    line.amount_group = new_amount
+                    rate_grp = getattr(line, "exchange_rate_group", Decimal("1.000000")) or Decimal("1.000000")
+                    line.amount_group = (new_amount * rate_grp).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
 
             entry.is_anomaly = True
             entry.anomaly_ids.append(anomaly_id)

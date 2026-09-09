@@ -208,7 +208,8 @@ class ThreeWayMatchingEngine:
 
         # Valuation legs
         gr_base_price = po.po_unit_price
-        gr_clearing_amount = (inv_qty_dec * gr_base_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        gr_clearing_qty = min(inv_qty_dec, gr.received_qty) if gr is not None else inv_qty_dec
+        gr_clearing_amount = (gr_clearing_qty * gr_base_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         total_vendor_due = (inv_qty_dec * inv_price_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         ppv_delta = total_vendor_due - gr_clearing_amount
 

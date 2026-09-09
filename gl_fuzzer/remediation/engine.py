@@ -74,16 +74,22 @@ class RemediationAdvisor:
         abap_code = (
             "* SAP ABAP Enhancement: BAdI BADI_ACC_DOCUMENT (Method CHANGE)\n"
             "METHOD if_ex_badi_acc_document~change.\n"
-            "  DATA: lt_mseg TYPE TABLE OF mseg,\n"
-            "        lv_po   TYPE ebeln.\n"
+            "  DATA: lv_po TYPE ebeln.\n"
             "  LOOP AT c_accit ASSIGNING FIELD-SYMBOL(<fs_line>) WHERE bschl = '31'.\n"
             "    lv_po = <fs_line>-ebeln.\n"
             "    IF lv_po IS INITIAL.\n"
-            "      MESSAGE e052(zmm) WITH 'Vendor invoice rejected: Missing referenced Purchase Order'.\n"
+            "      APPEND VALUE #( type = 'E' id = 'ZMM' number = '052'\n"
+            "                      message = 'Vendor invoice rejected: Missing referenced Purchase Order' )\n"
+            "             TO c_return.\n"
+            "      RETURN.\n"
             "    ENDIF.\n"
             "    SELECT SINGLE mblnr FROM mseg INTO @DATA(lv_mblnr) WHERE ebeln = @lv_po AND bwart = '101'.\n"
             "    IF sy-subrc <> 0.\n"
-            "      MESSAGE e053(zmm) WITH 'Vendor invoice rejected: No matching Goods Receipt (WE) found for PO' lv_po.\n"
+            "      APPEND VALUE #( type = 'E' id = 'ZMM' number = '053'\n"
+            "                      message_v1 = lv_po\n"
+            "                      message = 'Vendor invoice rejected: No matching Goods Receipt (WE) found' )\n"
+            "             TO c_return.\n"
+            "      RETURN.\n"
             "    ENDIF.\n"
             "  ENDLOOP.\n"
             "ENDMETHOD.\n"
@@ -218,7 +224,7 @@ class RemediationAdvisor:
     def _remediate_generic_imbalance(cls, vuln_id: str, desc: str) -> RemediationPatch:
         sql_ddl = (
             "ALTER TABLE journal_entries ADD CONSTRAINT chk_zero_sum_balance\n"
-            "CHECK (abs(total_debits - total_credits) < 0.0001);\n"
+            "CHECK (total_debits = total_credits);\n"
         )
         return RemediationPatch(
             patch_id=f"PATCH_BAL_{vuln_id[:6]}",

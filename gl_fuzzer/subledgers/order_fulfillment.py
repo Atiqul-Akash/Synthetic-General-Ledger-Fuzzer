@@ -146,7 +146,8 @@ class SalesOrderFulfillmentEngine:
         billing_date: str = "2026-04-06",
     ) -> JournalEntry:
         """Posts customer billing invoice (RV) matching delivery quantity."""
-        gross_sales = (delivery.shipped_qty * so.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        billed_qty = min(delivery.shipped_qty, so.ordered_qty)
+        gross_sales = (billed_qty * so.unit_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         doc_num = f"RV_{uuid.uuid4().hex[:8].upper()}"
 
         lines = [

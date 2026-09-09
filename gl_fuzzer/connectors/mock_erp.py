@@ -114,7 +114,21 @@ class MockERPConnector(ERPConnector):
                 latency_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        # Rule 2: Cent-level balance constraint (SAP F5 022)
+        # Rule 2: Cent-level balance constraint (SAP F5 022) & currency consistency
+        if entry.lines:
+            base_curr = entry.lines[0].currency
+            for l in entry.lines[1:]:
+                if l.currency != base_curr:
+                    return ERPPostingResult(
+                        success=False,
+                        document_number=entry.document_number,
+                        fiscal_year=entry.fiscal_year,
+                        status_code=400,
+                        error_code="SAP_F5_MIXED_CURRENCY",
+                        error_message=f"Document contains mixed line currencies: {base_curr} vs {l.currency}",
+                        latency_ms=int((time.perf_counter() - start) * 1000),
+                    )
+
         if not entry.is_balanced:
             return ERPPostingResult(
                 success=False,
@@ -269,36 +283,50 @@ class MockERPConnector(ERPConnector):
                         )
                     )
 
-        # If Vendor Payment (KZ) -> Match and clear open AP item
+        # If Vendor Payment (KZ) -> Match and clear open AP items
         elif entry.document_type == DocumentType.KZ:
             for line in entry.lines:
                 if line.debit_credit == DebitCredit.DEBIT and line.vendor_id:
+                    rem_payment = line.amount
                     for item in self.open_items:
                         if (
                             not item.is_cleared
                             and item.partner_id == line.vendor_id
                             and item.debit_credit == DebitCredit.CREDIT
                         ):
-                            item.is_cleared = True
-                            item.clearing_doc = entry.document_number
-                            break
+                            if item.amount <= rem_payment:
+                                item.is_cleared = True
+                                item.clearing_doc = entry.document_number
+                                rem_payment -= item.amount
+                            else:
+                                item.amount -= rem_payment
+                                rem_payment = Decimal("0.00")
+                            if rem_payment <= Decimal("0.00"):
+                                break
 
-        # If Customer Payment (DZ) -> Match and clear open AR item and reduce AR exposure
+        # If Customer Payment (DZ) -> Match and clear open AR items and reduce AR exposure
         elif entry.document_type == DocumentType.DZ:
             for line in entry.lines:
                 if line.debit_credit == DebitCredit.CREDIT and line.customer_id:
                     self.customer_ar_balances[line.customer_id] = max(
                         Decimal("0.00"), self.customer_ar_balances[line.customer_id] - line.amount
                     )
+                    rem_payment = line.amount
                     for item in self.open_items:
                         if (
                             not item.is_cleared
                             and item.partner_id == line.customer_id
                             and item.debit_credit == DebitCredit.DEBIT
                         ):
-                            item.is_cleared = True
-                            item.clearing_doc = entry.document_number
-                            break
+                            if item.amount <= rem_payment:
+                                item.is_cleared = True
+                                item.clearing_doc = entry.document_number
+                                rem_payment -= item.amount
+                            else:
+                                item.amount -= rem_payment
+                                rem_payment = Decimal("0.00")
+                            if rem_payment <= Decimal("0.00"):
+                                break
 
         latency = int((time.perf_counter() - start) * 1000)
         return ERPPostingResult(

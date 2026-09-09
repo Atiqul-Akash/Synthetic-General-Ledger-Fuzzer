@@ -109,10 +109,15 @@ class AdaptiveMutator:
             entry.anomaly_ids.append(AnomalyType.PHANTOM_PO_THREE_WAY_BYPASS.value)
 
         elif op == "NON_POSITIVE_AMOUNT":
-            if entry.lines:
-                entry.lines[0].amount = Decimal("0.00")
+            for line in entry.lines:
+                line.amount = Decimal("0.00")
+                if line.amount_local is not None:
+                    line.amount_local = Decimal("0.00")
+                if line.amount_group is not None:
+                    line.amount_group = Decimal("0.00")
             entry.is_anomaly = True
             entry.anomaly_ids.append(AnomalyType.SECURITY_FUZZ_CRASH.value)
+
 
         return entry
 

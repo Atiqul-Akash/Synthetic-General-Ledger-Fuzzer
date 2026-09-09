@@ -79,6 +79,7 @@ class MasterDataManager:
         """Modifies a vendor's banking routing immediately prior to a payment."""
         vendor = self.vendors[vendor_id]
         tampered, record = BankRoutingTamperingMutator.mutate(vendor, tamper_date, self.rng)
+        self.vendors[vendor_id] = tampered
         self.anomalies.append(record)
         return tampered, record
 
@@ -102,7 +103,7 @@ class MasterDataManager:
                 v1 = vendor_list[i]
                 v2 = vendor_list[j]
                 ratio = difflib.SequenceMatcher(None, v1.name.lower(), v2.name.lower()).ratio()
-                if ratio >= 0.70 and v1.bank_account_number != v2.bank_account_number:
+                if ratio >= 0.85 and v1.bank_account_number != v2.bank_account_number:
                     flagged_sybils.append({
                         "vendor_1": {"id": v1.vendor_id, "name": v1.name},
                         "vendor_2": {"id": v2.vendor_id, "name": v2.name},

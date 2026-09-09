@@ -35,6 +35,8 @@ class DesktopGUI:
         self.state = GLAppState()
         self.state.output_dir = Path("./desktop_gui_output")
         self.state.output_dir.mkdir(parents=True, exist_ok=True)
+        self._entry_by_doc: Dict[str, Any] = {}
+        self._search_debounce_job = None
 
         self._configure_styles()
         self._build_header()
@@ -464,6 +466,12 @@ class DesktopGUI:
             self.txt_breakdown.insert(tk.END, "Zero anomalies (Clean baseline).")
         self.txt_breakdown.config(state=tk.DISABLED)
 
+        # Update O(1) document lookup cache
+        if self.state.batch:
+            self._entry_by_doc = {e.document_number: e for e in self.state.batch.entries}
+        else:
+            self._entry_by_doc = {}
+
         # Refresh Explorer table and Export table
         self._refresh_explorer_table()
         self._refresh_export_table()
@@ -502,7 +510,13 @@ class DesktopGUI:
         self.search_text_var = tk.StringVar()
         search_entry = ttk.Entry(filter_bar, textvariable=self.search_text_var, width=22)
         search_entry.pack(side=tk.LEFT, padx=(0, 6))
-        search_entry.bind("<KeyRelease>", lambda e: self._filter_entries())
+
+        def _on_search_key(event):
+            if self._search_debounce_job is not None:
+                self.root.after_cancel(self._search_debounce_job)
+            self._search_debounce_job = self.root.after(200, self._filter_entries)
+
+        search_entry.bind("<KeyRelease>", _on_search_key)
 
         ttk.Button(filter_bar, text="Clear Filter", command=self._clear_filters).pack(side=tk.LEFT)
 
@@ -657,12 +671,13 @@ class DesktopGUI:
             return
 
         doc_num = values[0]
-        # Find matching entry in batch
-        target_entry = None
-        for e in self.state.batch.entries:
-            if e.document_number == doc_num:
-                target_entry = e
-                break
+        # Fast O(1) matching entry lookup
+        target_entry = self._entry_by_doc.get(doc_num)
+        if not target_entry and self.state.batch:
+            for e in self.state.batch.entries:
+                if e.document_number == doc_num:
+                    target_entry = e
+                    break
 
         if not target_entry:
             return

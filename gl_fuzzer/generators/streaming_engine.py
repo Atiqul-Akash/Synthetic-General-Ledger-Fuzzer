@@ -50,8 +50,8 @@ class ChunkedSynthesisEngine:
         foreign_currencies = ["EUR", "GBP", "JPY", "CHF", "CAD"]
 
         for entry in entries:
-            # 1. Apply Macro Seasonality Date Shift
-            if self.macro_seasonality and self.macro_calendar:
+            # 1. Apply Macro Seasonality Date Shift (only for non-anomalous entries to preserve temporal clustering)
+            if self.macro_seasonality and self.macro_calendar and not getattr(entry, "is_anomaly", False):
                 try:
                     entry_dt = datetime.fromisoformat(entry.posting_date)
                     is_weekend = entry_dt.weekday() >= 5 or "GHOST" in entry.entry_id or "WEEKEND" in entry.entry_id
@@ -68,6 +68,7 @@ class ChunkedSynthesisEngine:
                 entry.fiscal_period = sampled_date.month
                 time_str = getattr(entry, "entry_time", "09:30:00") or "09:30:00"
                 entry.created_at = f"{sampled_date.isoformat()}T{time_str}Z"
+
 
             # 2. Apply Multi-Currency Triad (ASC 830)
             if self.multi_currency and self.fx_provider:

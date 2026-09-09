@@ -171,8 +171,9 @@ class TaxLocalizationEngine:
                 elif line.debit_credit == DebitCredit.DEBIT and line.account_code.startswith("11"):
                     reconciliation_line = line
 
-        if base_line is None:
+        if base_line is None or reconciliation_line is None:
             return entry
+
 
         calc = self.calculate_tax(
             base_amount=base_line.amount,

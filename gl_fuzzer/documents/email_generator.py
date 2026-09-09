@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional
 import email.message
 
@@ -26,7 +27,7 @@ class EmailThreadGenerator:
         msg["To"] = "Elena Rostova <ap.director@enterprise-corp.com>"
         msg["Cc"] = "treasury-operations@enterprise-corp.com"
         msg["Subject"] = f"URGENT: Executive Exception Approval - Expedited Settlement for {vendor_name}"
-        msg["Date"] = "Mon, 14 Apr 2026 18:22:15 -0400"
+        msg["Date"] = "Tue, 14 Apr 2026 18:22:15 -0400"
         msg["Message-ID"] = "<exec.override.9081@enterprise-corp.com>"
 
         body = (
@@ -66,7 +67,8 @@ class EmailThreadGenerator:
     ) -> SyntheticDocumentResult:
         """Generates a suspicious vendor bank update notification email."""
         msg = email.message.EmailMessage()
-        msg["From"] = f"Billing Support <accounts@{vendor_name.lower().replace(' ', '')}.com>"
+        clean_domain = re.sub(r"[^a-z0-9]", "", vendor_name.lower()) or "vendor"
+        msg["From"] = f"Billing Support <accounts@{clean_domain}.com>"
         msg["To"] = "Accounts Payable <ap@enterprise-corp.com>"
         msg["Subject"] = f"URGENT: Updated Remittance Banking Details for {vendor_name}"
         msg["Date"] = "Wed, 16 Apr 2026 08:45:00 -0400"

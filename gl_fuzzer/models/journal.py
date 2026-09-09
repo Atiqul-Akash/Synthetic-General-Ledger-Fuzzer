@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class DebitCredit(str, Enum):
@@ -69,20 +69,22 @@ class LineItem(BaseModel):
     tax_jurisdiction: Optional[str] = Field(default=None, description="Tax Jurisdiction Code (TXJCD)")
     clearing_doc: Optional[str] = Field(default=None, description="Clearing Document Number (AUGBL)")
 
-    def model_post_init(self, __context) -> None:
+    @model_validator(mode="after")
+    def validate_and_quantize(self) -> LineItem:
         # Quantize amount to exactly 2 decimal places to prevent floating-point drift
-        object.__setattr__(self, 'amount', self.amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        self.amount = self.amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         # Multi-currency fallbacks and quantization
         amt_loc = self.amount_local if self.amount_local is not None else self.amount
         amt_grp = self.amount_group if self.amount_group is not None else self.amount
-        object.__setattr__(self, 'amount_local', amt_loc.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-        object.__setattr__(self, 'amount_group', amt_grp.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        self.amount_local = amt_loc.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        self.amount_group = amt_grp.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         # Ensure correct SAP posting key default if not explicitly provided
         if self.posting_key in ("40", "50"):
-            expected_key = "40" if self.debit_credit == DebitCredit.DEBIT else "50"
-            object.__setattr__(self, 'posting_key', expected_key)
+            self.posting_key = "40" if self.debit_credit == DebitCredit.DEBIT else "50"
+        return self
+
 
 
 class JournalEntry(BaseModel):

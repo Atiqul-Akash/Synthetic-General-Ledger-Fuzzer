@@ -92,9 +92,13 @@ class BankRoutingTamperingMutator:
         new_routing = f"091{r.randint(100000, 999999)}"
         new_account = f"{r.randint(500000000, 999999999)}"
 
-        vendor.bank_routing_number = new_routing
-        vendor.bank_account_number = new_account
-        vendor.last_modified_date = tamper_date
+        tampered = vendor.model_copy(
+            update={
+                "bank_routing_number": new_routing,
+                "bank_account_number": new_account,
+                "last_modified_date": tamper_date,
+            }
+        )
 
         record = MDMAnomalyRecord(
             anomaly_id=f"MDM_TAMPER_{uuid.uuid4().hex[:8].upper()}",
@@ -113,7 +117,7 @@ class BankRoutingTamperingMutator:
             },
             detection_rule="Audit log timestamp correlation between bank master change and disbursement execution",
         )
-        return vendor, record
+        return tampered, record
 
 
 class EmployeeVendorCollusionMutator:

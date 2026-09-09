@@ -10,6 +10,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import socketserver
 import threading
 import urllib.parse
@@ -434,18 +435,23 @@ class GLWebRequestHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def _send_file(self, file_path: Path):
-        with open(file_path, "rb") as f:
-            data = f.read()
+        file_size = file_path.stat().st_size
         self.send_response(200)
         self.send_header("Content-Type", "application/octet-stream")
         self.send_header("Content-Disposition", f'attachment; filename="{file_path.name}"')
-        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Length", str(file_size))
         self.end_headers()
-        self.wfile.write(data)
+        with open(file_path, "rb") as f:
+            shutil.copyfileobj(f, self.wfile, length=64 * 1024)
 
     def log_message(self, format, *args):
         # Suppress noisy standard HTTP logs
         return
+
+
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    daemon_threads = True
+    allow_reuse_address = True
 
 
 def start_web_gui(port: int = 8080, open_browser: bool = True):
@@ -454,14 +460,18 @@ def start_web_gui(port: int = 8080, open_browser: bool = True):
     if not state.batch:
         state.generate(count=500, anomaly_rate=0.06, seed=42)
 
-    server_address = ("", port)
-    try:
-        httpd = socketserver.TCPServer(server_address, GLWebRequestHandler)
-    except OSError:
-        # Fallback to an alternate port if 8080 is busy
-        port = port + 1
-        server_address = ("", port)
-        httpd = socketserver.TCPServer(server_address, GLWebRequestHandler)
+    httpd = None
+    original_port = port
+    for p in range(original_port, original_port + 10):
+        try:
+            httpd = ThreadedTCPServer(("", p), GLWebRequestHandler)
+            port = p
+            break
+        except OSError:
+            continue
+
+    if httpd is None:
+        raise OSError(f"Could not bind to any port in range {original_port}-{original_port + 9}")
 
     url = f"http://localhost:{port}"
     print(f"\n[GL Fuzzer Web GUI] Serving at {url}")

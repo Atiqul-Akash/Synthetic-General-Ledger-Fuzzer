@@ -128,17 +128,39 @@ class WithholdingTaxEngine:
         if wht_amt <= Decimal("0.00"):
             return entry
 
+        # Copy currency and FX rates from cash_credit_line
+        curr = cash_credit_line.currency
+        rate_loc = getattr(cash_credit_line, "exchange_rate_local", Decimal("1.000000")) or Decimal("1.000000")
+        rate_grp = getattr(cash_credit_line, "exchange_rate_group", Decimal("1.000000")) or Decimal("1.000000")
+
         # Adjust cash credit line amount
         cash_credit_line.amount = net_cash
         if cash_credit_line.amount_local is not None:
-            cash_credit_line.amount_local = net_cash
+            cash_credit_line.amount_local = (net_cash * rate_loc).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if cash_credit_line.amount_group is not None:
-            cash_credit_line.amount_group = net_cash
+            cash_credit_line.amount_group = (net_cash * rate_grp).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         # Append WHT credit line
         wht_line = tax_res.tax_line_items[0]
         wht_line.entry_id = entry.entry_id
         wht_line.line_number = len(entry.lines) + 1
+        wht_line.currency = curr
+        wht_line.exchange_rate_local = rate_loc
+        wht_line.exchange_rate_group = rate_grp
+        wht_line.amount_local = (wht_amt * rate_loc).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        wht_line.amount_group = (wht_amt * rate_grp).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        # Rebalance local and group currency rounding differences so debits == credits
+        if cash_credit_line.amount_local is not None:
+            delta_loc = entry.total_debits_local - (cash_credit_line.amount_local + wht_line.amount_local)
+            if delta_loc != Decimal("0.00"):
+                cash_credit_line.amount_local += delta_loc
+
+        if cash_credit_line.amount_group is not None:
+            delta_grp = entry.total_debits_group - (cash_credit_line.amount_group + wht_line.amount_group)
+            if delta_grp != Decimal("0.00"):
+                cash_credit_line.amount_group += delta_grp
+
         entry.lines.append(wht_line)
 
         return entry
