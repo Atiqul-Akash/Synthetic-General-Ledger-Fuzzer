@@ -25,7 +25,7 @@ echo   [4] Run SOX-404 Forensic Audit on Generated Dataset
 echo       Runs Benford, DOA split-invoices, and circular round-trip tests
 echo.
 echo   [5] Run Complete Automated Test Suite (pytest)
-echo       Runs all 75 unit and integration tests
+echo       Runs all 83 unit and integration tests
 echo.
 echo   [6] Exit
 echo.
@@ -54,7 +54,7 @@ goto pause_exit
 :run_generate
 echo.
 echo Synthesizing 1,000 journal entries with 5%% anomaly rate into ./output...
-python -m gl_fuzzer.cli generate --count 1000 --anomaly-rate 0.05 --out-dir ./output --export-formats parquet,csv,sap
+python -m gl_fuzzer.cli generate --count 1000 --anomaly-rate 0.05 --acdoca --out-dir ./output --export-formats parquet,csv,sap
 goto pause_exit
 
 :run_audit

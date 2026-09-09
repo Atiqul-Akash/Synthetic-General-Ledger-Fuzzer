@@ -36,9 +36,9 @@ def main():
     print("Select an option to launch:")
     print("  [1] Modern Web GUI (Interactive Dashboard in Browser - Recommended)")
     print("  [2] Native Windows Desktop GUI (Offline Window)")
-    print("  [3] Generate 1,000 Sample Ledger Entries (Parquet, CSV, SAP BSEG)")
+    print("  [3] Generate 1,000 Sample Ledger Entries (Parquet, CSV, SAP BSEG, ACDOCA)")
     print("  [4] Run SOX-404 Forensic Audit on Generated Dataset")
-    print("  [5] Run Complete Automated Test Suite (pytest - 75 tests)")
+    print("  [5] Run Complete Automated Test Suite (pytest - 83 tests)")
     print("  [6] Exit")
     print()
 
@@ -60,7 +60,7 @@ def main():
         print("\nGenerating dataset...")
         subprocess.run([
             sys.executable, "-m", "gl_fuzzer.cli", "generate",
-            "--count", "1000", "--anomaly-rate", "0.05",
+            "--count", "1000", "--anomaly-rate", "0.05", "--acdoca",
             "--out-dir", "./output", "--export-formats", "parquet,csv,sap"
         ])
     elif choice == "4":
@@ -69,7 +69,7 @@ def main():
             print("\nDataset not found in ./output. Synthesizing fresh dataset first...")
             subprocess.run([
                 sys.executable, "-m", "gl_fuzzer.cli", "generate",
-                "--count", "1000", "--anomaly-rate", "0.05",
+                "--count", "1000", "--anomaly-rate", "0.05", "--acdoca",
                 "--out-dir", "./output", "--export-formats", "parquet,csv,sap"
             ])
         print("\nRunning SOX-404 forensic audit...")
@@ -79,7 +79,7 @@ def main():
             "--manifest", "./output/ground_truth_manifest.json"
         ])
     elif choice == "5":
-        print("\nRunning automated tests (53 tests)...")
+        print("\nRunning automated tests (83 tests)...")
         subprocess.run([sys.executable, "-m", "pytest", "-v"])
     elif choice == "6":
         print("Goodbye!")

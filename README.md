@@ -3,8 +3,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License" />
-  <img src="https://img.shields.io/badge/Tests-75%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="75 Tests Passed" />
-  <img src="https://img.shields.io/badge/Version-0.2.0%20Enterprise-blueviolet?style=for-the-badge" alt="v0.2.0 Enterprise" />
+  <img src="https://img.shields.io/badge/Tests-83%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="83 Tests Passed" />
+  <img src="https://img.shields.io/badge/Version-1.0.0%20Enterprise-blueviolet?style=for-the-badge" alt="v1.0.0 Enterprise" />
   <img src="https://img.shields.io/badge/Double--Entry-Zero--Sum%20Verified-emerald?style=for-the-badge" alt="Double-Entry Invariant" />
   <img src="https://img.shields.io/badge/SOX-404-Compliant-indigo?style=for-the-badge" alt="SOX-404 Compliant" />
   <img src="https://img.shields.io/badge/Author-Atiqul--Akash-orange?style=for-the-badge&logo=github&logoColor=white" alt="Atiqul-Akash" />
@@ -24,7 +24,7 @@
 ## Table of Contents
 
 - [Executive Summary](#executive-summary)
-- [Enterprise Architecture (v0.2.0 Upgrade)](#enterprise-architecture-v020-upgrade)
+- [System Architecture](#system-architecture)
 - [Core Business Cycles](#core-business-cycles)
   - [Procure-to-Pay (P2P)](#1-procure-to-pay-p2p)
   - [Order-to-Cash (O2C)](#2-order-to-cash-o2c)
@@ -34,6 +34,7 @@
 - [Macro-Economic Seasonality Modulator](#macro-economic-seasonality-modulator)
 - [SAP S/4HANA Universal Journal (ACDOCA)](#sap-s4hana-universal-journal-acdoca)
 - [Double-Entry Mathematical Invariant Gate](#double-entry-mathematical-invariant-gate)
+- [Deep Codebase Audit & Glitch-Proofing (12 Resolved Bugs)](#deep-codebase-audit--glitch-proofing)
 - [Dual Graphical User Interfaces (Zero-Confusion)](#dual-graphical-user-interfaces)
   - [1. Modern Web GUI (Browser-Based)](#1-modern-web-gui)
   - [2. Native Windows Desktop GUI (Offline Tkinter)](#2-native-windows-desktop-gui)
@@ -41,7 +42,7 @@
 - [CLI Reference](#cli-reference)
 - [Dual-Artifact Export Formats](#dual-artifact-export-formats)
 - [Automated Forensic Audit Screening (SOX-404)](#automated-forensic-audit-screening)
-- [Automated Test Suite (75 Tests)](#automated-test-suite)
+- [Automated Test Suite (83 Tests)](#automated-test-suite)
 - [Repository Structure](#repository-structure)
 - [Contributing & License](#contributing--license)
 
@@ -110,12 +111,14 @@ Simulates end-to-end vendor procurement across three linked documents:
 - **Goods Receipt (`WE`)**: Debits Inventory (`14000`), Credits GR/IR Clearing (`21100`).
 - **Invoice Receipt (`KR`)**: Debits GR/IR Clearing (`21100`), Credits Accounts Payable Trade (`20000`) with assigned Vendor ID.
 - **Vendor Payment (`KZ`)**: Debits AP Trade (`20000`), Credits Operating Cash (`10100`).
+- **Standalone Vendor Invoice**: Direct expense voucher generation debiting departmental expenses (`62000`–`69000`) and crediting Accounts Payable (`20000`).
 
 ### 2. Order-to-Cash (O2C)
 Simulates commercial customer sales lifecycle with multi-leg sales tax calculation:
 - **Goods Issue (`WA`)**: Debits Cost of Goods Sold (`50000`), Credits Finished Goods Inventory (`14100`).
 - **Customer Billing (`DR`)**: Multi-leg split entry debiting Accounts Receivable Trade (`11000`) for the full invoice amount, while crediting Sales Revenue (`40000`) and Sales Tax Payable (`22000`) based on configured tax rates (default: 6%).
 - **Cash Receipt (`DZ`)**: Debits Operating Cash (`10100`), Credits AR Trade (`11000`).
+- **Standalone Customer Invoice**: Direct billing voucher synthesis (`generate_single_customer_invoice`) debiting AR Trade (`11000`) and crediting Sales/Service Revenue (`40000`/`41000`) with exact cycle attribution.
 
 ### 3. Record-to-Report (R2R)
 Simulates periodic closing, asset valuation, and operational entries:
@@ -193,7 +196,27 @@ $$\sum_{i=1}^{N_{\text{debits}}} \text{Debit}_i - \sum_{j=1}^{M_{\text{credits}}
 
 - **Parquet Export Precision**: Columns utilize PyArrow `pa.decimal128(18, 2)` to eliminate precision degradation when saved to disk.
 - **Automated Invariant Gate**: Every batch passes through `InvariantVerifier` prior to export. If a single entry deviates by even $\$0.01$, the pipeline aborts immediately.
+- **Multi-Currency Invariant Gate**: Validates `is_balanced_local` and `is_balanced_group` to guarantee that international currency conversion legs do not leak fractional pennies.
 - **Streaming Zero-OOM Engine**: `ChunkedSynthesisEngine` and `StreamingParquetExporter` stream multi-million-row datasets sequentially in configurable row-group chunks to disk with zero memory leaks.
+
+---
+
+## Deep Codebase Audit & Glitch-Proofing
+
+The entire codebase has undergone an exhaustive line-by-line audit across all six architectural layers. **12 concrete issues and edge-case vulnerabilities were identified and permanently resolved**:
+
+1. **Contra Accounts Normal Balance Validation (`coa.py`)**: Added `is_contra: bool = False` to `Account`. Fixed `validate_normal_balance()` to invert normal balance for contra-assets (`11500`, `17900`) and contra-revenue (`43000`).
+2. **DOA Cluster Mixed Timezone Comparison (`audit_metrics.py`)**: Stripped timezone offsets to guarantee naive UTC comparisons, preventing `TypeError: can't compare offset-naive and offset-aware datetimes`.
+3. **Macro Seasonality Timestamp Synchronization (`streaming_engine.py`)**: Synchronized `fiscal_year`, `fiscal_period` (`POPER`), and `created_at` when shifting posting dates for hockey-stick rushes.
+4. **Compact 8-Digit SAP Dates (`currency.py`)**: Added date normalization in `ExchangeRateProvider.get_rate_to_usd` to map compact SAP dates (`YYYYMMDD`) to daily stochastic rates instead of static baselines.
+5. **Self-Referential Cryptographic Digest Alignment (`manifest_exporter.py`)**: Aligned in-memory JSON payload hash with detached checksum file verification.
+6. **NoneType Guards & Dynamic Currency in BSEG (`sap_bseg_exporter.py`)**: Guarded string slicing against `None` values and dynamically populated BKPF `WAERS` from line item currency.
+7. **Zero-Chunk Streaming Parquet Safety (`streaming_parquet.py`)**: Prevented `FileNotFoundError` on `close()` when no entries were appended by writing an empty schema-compliant table.
+8. **O2C Standalone Customer Invoices (`base_engine.py` & `o2c_cycle.py`)**: Implemented `generate_single_customer_invoice()` in `O2CCycleGenerator`, eliminating inaccurate P2P fallback during O2C phases.
+9. **Multi-Currency Aggregate Properties on Batch (`journal.py`)**: Added `total_debits_local`, `total_credits_local`, `is_balanced_local`, `total_debits_group`, `total_credits_group`, and `is_balanced_group` to `Batch`.
+10. **GUI Thread Safety & ACDOCA Deliverables (`web_gui.py` & `desktop_gui.py`)**: Added `threading.Lock` to `GLAppState` to protect concurrent generation. Exported ACDOCA Parquet and CSV files and added dedicated download cards to the Web GUI and Desktop GUI.
+11. **Multi-Currency Invariant Verification (`invariants.py`)**: Enhanced `InvariantVerifier` to check `is_balanced_local` and `is_balanced_group` on document-balanced vouchers.
+12. **Calendar-Constrained Month-End Sampling (`distributions.py`)**: Constrained `random_month_end_date` to sampling valid `(year, month)` pairs strictly within the configured calendar window.
 
 ---
 
@@ -209,16 +232,17 @@ To make testing, analysis, and data synthesis accessible to both technical devel
   - **Quick Start Presets**: *Standard Benchmark*, *Quick Smoke Test*, *Forensic Stress*, *Clean Baseline*.
   - **Interactive Voucher Explorer**: Search, filter, and inspect debit/credit line items and counterparty IDs.
   - **SOX-404 Screening Center**: Visual Benford curve comparison chart, DOA cluster breakdowns, off-hours distribution, and intercompany loops.
-  - **One-Click Downloads**: Direct browser downloads for Parquet, CSV, SAP BSEG/BKPF, and JSON manifests.
+  - **One-Click Downloads**: Direct browser downloads for Parquet, CSV, SAP BSEG/BKPF, **SAP S/4HANA ACDOCA (Parquet & CSV)**, and JSON manifests.
 
 ### 2. Native Windows Desktop GUI
 - **Stack**: Native Python `tkinter` and `ttk` with styled widgets.
 - **100% Offline**: Operates completely disconnected from the internet.
+- **Thread-Safe**: Background worker execution with synchronized state locking.
 - **4 Dedicated Workspaces**:
   1. *Synthesis & Generation*: Sliders, anomaly toggles, and live progress reporting.
   2. *Voucher & Ledger Explorer*: Paginated table with double-click drilldown into line items.
   3. *SOX-404 Forensic Audit*: Diagnostic cards with status badges and forensic findings.
-  4. *Export & Artifacts*: Target folder picker and format selection.
+  4. *Export & Artifacts*: Target folder picker, format descriptions including SAP S/4HANA ACDOCA Universal Journal, and direct file opener.
 
 ---
 
@@ -308,30 +332,35 @@ The framework includes built-in detection algorithms evaluating datasets against
 
 ## Automated Test Suite
 
-The codebase includes an automated test suite with **75 comprehensive unit and integration tests**:
+The codebase includes an automated test suite with **83 comprehensive unit, regression, and integration tests**:
 
 ```bash
 python -m pytest -v
 ```
 
 ```
-tests/test_acdoca.py ....                          [  5%]
-tests/test_anomalies.py ......                     [ 13%]
-tests/test_audit_metrics.py .....                  [ 20%]
-tests/test_cli.py ..                               [ 22%]
-tests/test_coa_models.py ...                       [ 26%]
-tests/test_cycles.py ....                          [ 32%]
-tests/test_edge_cases.py .....                     [ 38%]
-tests/test_exporters.py ....                       [ 44%]
-tests/test_generators.py ....                      [ 49%]
-tests/test_gui.py .....                            [ 56%]
-tests/test_invariants.py ....                      [ 61%]
-tests/test_macro_calendar.py .....                 [ 68%]
-tests/test_models.py ...........                   [ 82%]
-tests/test_multi_currency.py ........              [ 93%]
-tests/test_streaming.py .....                     [100%]
+============================= test session starts =============================
+platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\PROJECT\PYTHON
+collected 83 items
 
-============================= 75 passed in 2.39s ==============================
+tests/test_acdoca.py ....                                                [  4%]
+tests/test_anomalies.py ......                                           [ 12%]
+tests/test_audit_metrics.py .....                                        [ 18%]
+tests/test_cli.py ...                                                    [ 21%]
+tests/test_coa_models.py ...                                             [ 25%]
+tests/test_cycles.py ....                                                [ 30%]
+tests/test_edge_cases.py ............                                    [ 44%]
+tests/test_exporters.py ....                                             [ 49%]
+tests/test_generators.py ....                                            [ 54%]
+tests/test_gui.py .....                                                  [ 60%]
+tests/test_invariants.py ....                                            [ 65%]
+tests/test_macro_calendar.py .....                                       [ 71%]
+tests/test_models.py ...........                                         [ 84%]
+tests/test_multi_currency.py ........                                    [ 93%]
+tests/test_streaming.py .....                                            [100%]
+
+============================= 83 passed in 2.79s ==============================
 ```
 
 ---
@@ -343,19 +372,19 @@ Synthetic-General-Ledger-Fuzzer/
 ├── gl_fuzzer/
 │   ├── __init__.py
 │   ├── cli.py                     # Typer / Rich command-line interface
-│   ├── web_gui.py                 # Modern browser-based dashboard (Tailwind + Chart.js)
-│   ├── desktop_gui.py             # Native offline Tkinter application
+│   ├── web_gui.py                 # Modern browser dashboard with ACDOCA download cards
+│   ├── desktop_gui.py             # Native offline Tkinter application (Thread-safe)
 │   ├── models/
-│   │   ├── coa.py                 # Chart of Accounts, Account, NormalBalance
-│   │   ├── journal.py             # LineItem, JournalEntry, Batch (Decimal cent logic)
-│   │   ├── currency.py            # Currency enum & ExchangeRateProvider (GBM/OU drift)
+│   │   ├── coa.py                 # Chart of Accounts, Account (is_contra), NormalBalance
+│   │   ├── journal.py             # LineItem, JournalEntry, Batch (Multi-currency balance)
+│   │   ├── currency.py            # Currency enum & ExchangeRateProvider (GBM/OU drift, compact dates)
 │   │   └── manifest.py            # AnomalyRecord, GroundTruthManifest
 │   ├── generators/
-│   │   ├── distributions.py       # Benford, LogNormal, BusinessCalendar
+│   │   ├── distributions.py       # Benford, LogNormal, BusinessCalendar (Bounded sampling)
 │   │   ├── macro_calendar.py      # Macro-economic calendar & quarterly seasonality
 │   │   ├── streaming_engine.py    # Chunked synthesis engine (Multi-currency & streaming)
-│   │   ├── p2p_cycle.py           # Procure-to-Pay generator (WE, KR, KZ)
-│   │   ├── o2c_cycle.py           # Order-to-Cash generator (WA, DR, DZ)
+│   │   ├── p2p_cycle.py           # Procure-to-Pay generator (WE, KR, KZ, single invoice)
+│   │   ├── o2c_cycle.py           # Order-to-Cash generator (WA, DR, DZ, single customer invoice)
 │   │   ├── r2r_cycle.py           # Record-to-Report (Depreciation, Payroll, Accrual)
 │   │   └── base_engine.py         # Master synthesis engine
 │   ├── anomalies/
@@ -367,16 +396,16 @@ Synthetic-General-Ledger-Fuzzer/
 │   │   ├── round_tripping.py      # Intercompany circular transfer cycles
 │   │   └── pipeline.py            # Anomaly orchestration pipeline
 │   ├── verification/
-│   │   ├── invariants.py          # Strict double-entry balance verifier
-│   │   └── audit_metrics.py       # SOX-404 automated audit detection algorithms
+│   │   ├── invariants.py          # Strict double-entry balance verifier (Doc, Local, Group)
+│   │   └── audit_metrics.py       # SOX-404 automated audit detection (Timezone-safe)
 │   └── exporters/
 │       ├── parquet_exporter.py    # PyArrow Decimal128 Parquet exporter
-│       ├── streaming_parquet.py   # Zero-OOM streaming row-group Parquet writer
+│       ├── streaming_parquet.py   # Zero-OOM streaming row-group Parquet writer (Safe close)
 │       ├── acdoca_exporter.py     # SAP S/4HANA Universal Journal 50+ col exporter
-│       ├── csv_exporter.py        # RFC 4180 CSV exporter
-│       ├── sap_bseg_exporter.py   # SAP BKPF / BSEG table exporter
+│       ├── csv_exporter.py        # RFC 4180 CSV exporter (None-safe)
+│       ├── sap_bseg_exporter.py   # SAP BKPF / BSEG table exporter (None-safe, dynamic WAERS)
 │       └── manifest_exporter.py   # JSON & Parquet manifest exporter
-├── tests/                         # 75 automated unit and integration tests
+├── tests/                         # 83 automated unit, regression, and integration tests
 ├── pyproject.toml                 # Project configuration and dependencies
 ├── run.bat                        # Windows 1-click launcher
 ├── run.py                         # Cross-platform interactive launcher
