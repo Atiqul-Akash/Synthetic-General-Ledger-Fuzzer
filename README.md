@@ -3,8 +3,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License" />
-  <img src="https://img.shields.io/badge/Tests-172%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="172 Tests Passed" />
-  <img src="https://img.shields.io/badge/Version-0.3.0%20Enterprise-blueviolet?style=for-the-badge" alt="v0.3.0 Enterprise" />
+  <img src="https://img.shields.io/badge/Tests-180%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="180 Tests Passed" />
+  <img src="https://img.shields.io/badge/Version-0.4.0%20Enterprise-blueviolet?style=for-the-badge" alt="v0.4.0 Enterprise" />
   <img src="https://img.shields.io/badge/Double--Entry-Zero--Sum%20Verified-emerald?style=for-the-badge" alt="Double-Entry Invariant" />
   <img src="https://img.shields.io/badge/SOX-404-Compliant-indigo?style=for-the-badge" alt="SOX-404 Compliant" />
   <img src="https://img.shields.io/badge/Author-Atiqul--Akash-orange?style=for-the-badge&logo=github&logoColor=white" alt="Atiqul-Akash" />
@@ -53,7 +53,7 @@
 - [CLI Reference](#cli-reference)
 - [Dual-Artifact Export Formats](#dual-artifact-export-formats)
 - [Automated Forensic Audit Screening (SOX-404)](#automated-forensic-audit-screening)
-- [Automated Test Suite (172 Tests)](#automated-test-suite)
+- [Automated Test Suite (180 Tests)](#automated-test-suite)
 - [Repository Structure](#repository-structure)
 - [Contributing & License](#contributing--license)
 
@@ -64,7 +64,7 @@
 
 Building enterprise fraud-detection models, validating accounting automation systems, and auditing ERP integrity faces a notorious **cold-start dilemma**: real-world general ledger transaction feeds containing verified financial crimes or edge cases are confidential, legally restricted, and exceptionally rare.
 
-The **Synthetic General Ledger Fuzzer (v0.3 Enterprise)** bridges this gap by providing an end-to-end framework capable of:
+The **Synthetic General Ledger Fuzzer (v0.4 Enterprise)** bridges this gap by providing an end-to-end framework capable of:
 1. **Mathematical Invariant Rigor**: Every synthesized transaction voucher strictly enforces $\sum \text{Debits} \equiv \sum \text{Credits}$ across document, functional/local, and group consolidation currencies at exact cent precision (`Decimal("0.01")`).
 2. **Stateful ERP Interoperability**: Bi-directionally reads master data and balances from live or simulated SAP S/4HANA (OData V4, NetWeaver RFC) and Oracle Fusion Cloud REST environments.
 3. **Multi-Jurisdictional Tax Compliance**: Evaluates nexus, VAT reverse charges, and statutory withholding taxes across 50 US states, 27 EU member nations, the UK HMRC, and India TDS.
@@ -74,7 +74,7 @@ The **Synthetic General Ledger Fuzzer (v0.3 Enterprise)** bridges this gap by pr
 
 ---
 
-## Enterprise Architecture (v0.3)
+## Enterprise Architecture (v0.4)
 
 ```
                             [ Live ERP System / Mock Sandbox ]
@@ -128,7 +128,7 @@ The **Synthetic General Ledger Fuzzer (v0.3 Enterprise)** bridges this gap by pr
 
 ---
 
-## Five Enterprise Architectural Pillars (v0.3)
+## Five Enterprise Architectural Pillars (v0.4)
 
 ### 1. Stateful, Bidirectional ERP Synchronization
 *Package: `gl_fuzzer/connectors/`*
@@ -528,7 +528,7 @@ tests/test_streaming_sinks.py .........                                  [ 87%]
 tests/test_subledgers.py .........                                       [ 92%]
 tests/test_tax.py .............                                          [100%]
 
-============================= 172 passed in 12.78s =============================
+============================ 180 passed in 12.39s =============================
 ```
 
 ---
@@ -538,7 +538,7 @@ tests/test_tax.py .............                                          [100%]
 ```
 Synthetic-General-Ledger-Fuzzer/
 ├── gl_fuzzer/
-│   ├── __init__.py                # Package root (v0.3.0 Enterprise)
+│   ├── __init__.py                # Package root (v0.4.0 Enterprise)
 │   ├── cli.py                     # Typer / Rich CLI with cluster management
 │   ├── web_gui.py                 # Modern browser dashboard with REST API & ACDOCA cards
 │   ├── desktop_gui.py             # Native offline Tkinter GUI (6 tabs, Thread-safe)
@@ -621,8 +621,8 @@ Synthetic-General-Ledger-Fuzzer/
 │   ├── Dockerfile.mock_sap        # Mock SAP S/4HANA gateway service container
 │   └── mock_sap_service.py        # Mock OData V4 HTTP server
 ├── docker-compose.yml             # Redpanda Kafka, Mock SAP, LocalStack Kinesis compose
-├── tests/                         # 172 automated unit, regression, and integration tests
-├── pyproject.toml                 # Project configuration, dependencies, and v0.3.0 metadata
+├── tests/                         # 180 automated unit, regression, and integration tests
+├── pyproject.toml                 # Project configuration, dependencies, and v0.4.0 metadata
 ├── run.bat                        # Windows 1-click launcher
 ├── run.py                         # Cross-platform interactive launcher
 ├── LICENSE                        # MIT License
