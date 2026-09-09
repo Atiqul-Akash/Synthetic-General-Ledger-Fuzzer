@@ -30,14 +30,17 @@ class Account(BaseModel):
     parent_code: Optional[str] = None
     is_reconciliation: bool = False
     is_intercompany: bool = False
+    is_contra: bool = False
     description: str = ""
 
     def validate_normal_balance(self) -> bool:
         """Validate whether account adheres to standard accounting normal balance conventions."""
         if self.account_type in (AccountType.ASSET, AccountType.EXPENSE):
-            return self.normal_balance == NormalBalance.DEBIT
+            expected = NormalBalance.CREDIT if self.is_contra else NormalBalance.DEBIT
+            return self.normal_balance == expected
         elif self.account_type in (AccountType.LIABILITY, AccountType.EQUITY, AccountType.REVENUE):
-            return self.normal_balance == NormalBalance.CREDIT
+            expected = NormalBalance.DEBIT if self.is_contra else NormalBalance.CREDIT
+            return self.normal_balance == expected
         # CLEARING accounts can be either debit or credit depending on clearing state
         return True
 
@@ -69,13 +72,13 @@ class ChartOfAccounts(BaseModel):
             Account(code="10100", name="Operating Cash & Bank", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
             Account(code="10200", name="Payroll Cash Account", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
             Account(code="11000", name="Accounts Receivable - Trade", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT, is_reconciliation=True),
-            Account(code="11500", name="Allowance for Doubtful Accounts", account_type=AccountType.ASSET, normal_balance=NormalBalance.CREDIT), # Contra asset
+            Account(code="11500", name="Allowance for Doubtful Accounts", account_type=AccountType.ASSET, normal_balance=NormalBalance.CREDIT, is_contra=True), # Contra asset
             Account(code="12000", name="Intercompany Receivables", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT, is_intercompany=True),
             Account(code="14000", name="Raw Materials Inventory", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
             Account(code="14100", name="Finished Goods Inventory", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
             Account(code="15000", name="Prepaid Expenses", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
             Account(code="17000", name="Property, Plant & Equipment", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
-            Account(code="17900", name="Accumulated Depreciation - PPE", account_type=AccountType.ASSET, normal_balance=NormalBalance.CREDIT), # Contra asset
+            Account(code="17900", name="Accumulated Depreciation - PPE", account_type=AccountType.ASSET, normal_balance=NormalBalance.CREDIT, is_contra=True), # Contra asset
 
             # 2xxxx: Liabilities (Credit Normal)
             Account(code="20000", name="Accounts Payable - Trade", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.CREDIT, is_reconciliation=True),
@@ -96,7 +99,7 @@ class ChartOfAccounts(BaseModel):
             Account(code="40000", name="Gross Product Sales Revenue", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT),
             Account(code="41000", name="Service & Consulting Revenue", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT),
             Account(code="42000", name="Intercompany Revenue - Management Fees", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT, is_intercompany=True),
-            Account(code="43000", name="Sales Discounts Allowed", account_type=AccountType.REVENUE, normal_balance=NormalBalance.DEBIT), # Contra revenue
+            Account(code="43000", name="Sales Discounts Allowed", account_type=AccountType.REVENUE, normal_balance=NormalBalance.DEBIT, is_contra=True), # Contra revenue
             Account(code="47000", name="Realized Foreign Exchange Gain", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT),
 
             # 5xxxx: Cost of Goods Sold (Debit Normal)

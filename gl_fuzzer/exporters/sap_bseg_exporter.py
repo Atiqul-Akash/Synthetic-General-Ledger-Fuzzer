@@ -60,10 +60,10 @@ class SAPBSEGExporter:
                     "BUDAT": budat,
                     "MONAT": f"{entry.fiscal_period:02d}",
                     "CPUTM": cputm,
-                    "USNAM": entry.created_by[:12],
-                    "XBLNR": entry.reference[:16],
-                    "BKTXT": entry.header_text[:25],
-                    "WAERS": "USD",
+                    "USNAM": (entry.created_by or "SYSTEM")[:12],
+                    "XBLNR": (entry.reference or "")[:16],
+                    "BKTXT": (entry.header_text or "")[:25],
+                    "WAERS": entry.lines[0].currency if entry.lines and entry.lines[0].currency else "USD",
                 })
 
         # Write BSEG Segment
@@ -91,7 +91,7 @@ class SAPBSEGExporter:
                         "LIFNR": line.vendor_id or "",
                         "KUNNR": line.customer_id or "",
                         "VBUND": line.trading_partner or "",
-                        "SGTXT": line.line_text[:50],
+                        "SGTXT": (line.line_text or "")[:50],
                     })
 
         # Calculate hashes

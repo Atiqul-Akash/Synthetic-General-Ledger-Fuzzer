@@ -31,6 +31,7 @@ from gl_fuzzer.verification.audit_metrics import ForensicAuditEvaluator
 from gl_fuzzer.exporters.parquet_exporter import ParquetGLExporter
 from gl_fuzzer.exporters.csv_exporter import CSVGLExporter
 from gl_fuzzer.exporters.sap_bseg_exporter import SAPBSEGExporter
+from gl_fuzzer.exporters.acdoca_exporter import SAPACDOCAExporter
 from gl_fuzzer.exporters.manifest_exporter import ManifestExporter
 
 
@@ -38,6 +39,7 @@ class GLAppState:
     """Singleton state storing current generated batch, manifest, and export files."""
 
     def __init__(self):
+        self._lock = threading.Lock()
         self.batch: Optional[Batch] = None
         self.manifest: Optional[GroundTruthManifest] = None
         self.anomaly_records: List[AnomalyRecord] = []
@@ -53,77 +55,87 @@ class GLAppState:
         enabled_anomalies: Optional[Dict[str, bool]] = None,
     ) -> Dict[str, Any]:
         """Synthesizes a new batch, fuzzes it, verifies invariants, and writes exports."""
-        coa = ChartOfAccounts.create_default()
-        engine = BaseSynthesisEngine(coa=coa, seed=seed)
+        with self._lock:
+            coa = ChartOfAccounts.create_default()
+            engine = BaseSynthesisEngine(coa=coa, seed=seed)
 
-        batch_id = f"WEB_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        self.batch = engine.generate_batch(batch_id=batch_id, target_entry_count=count)
+            batch_id = f"WEB_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            self.batch = engine.generate_batch(batch_id=batch_id, target_entry_count=count)
 
-        enabled = enabled_anomalies or {
-            "smurfing": True,
-            "ghost": True,
-            "benford": True,
-            "pairings": True,
-            "round_trip": True,
-        }
+            enabled = enabled_anomalies or {
+                "smurfing": True,
+                "ghost": True,
+                "benford": True,
+                "pairings": True,
+                "round_trip": True,
+            }
 
-        active_mutators = []
-        if enabled.get("smurfing", True):
-            active_mutators.append(SmurfingMutator())
-        if enabled.get("ghost", True):
-            active_mutators.append(GhostEntriesMutator())
-        if enabled.get("benford", True):
-            active_mutators.append(BenfordSkewMutator())
-        if enabled.get("pairings", True):
-            active_mutators.append(AnomalousPairingsMutator())
-        if enabled.get("round_trip", True):
-            active_mutators.append(CircularRoundTrippingMutator())
+            active_mutators = []
+            if enabled.get("smurfing", True):
+                active_mutators.append(SmurfingMutator())
+            if enabled.get("ghost", True):
+                active_mutators.append(GhostEntriesMutator())
+            if enabled.get("benford", True):
+                active_mutators.append(BenfordSkewMutator())
+            if enabled.get("pairings", True):
+                active_mutators.append(AnomalousPairingsMutator())
+            if enabled.get("round_trip", True):
+                active_mutators.append(CircularRoundTrippingMutator())
 
-        pipeline = AnomalyPipeline(coa=coa, mutators=active_mutators, seed=seed)
-        self.anomaly_records = pipeline.inject_anomalies(self.batch, overall_anomaly_rate=anomaly_rate)
+            pipeline = AnomalyPipeline(coa=coa, mutators=active_mutators, seed=seed)
+            self.anomaly_records = pipeline.inject_anomalies(self.batch, overall_anomaly_rate=anomaly_rate)
 
-        # Invariant Verification
-        inv_report = InvariantVerifier.verify_batch(self.batch)
+            # Invariant Verification
+            inv_report = InvariantVerifier.verify_batch(self.batch)
 
-        anom_entry_ids = set()
-        for r in self.anomaly_records:
-            anom_entry_ids.update(r.affected_entry_ids)
+            anom_entry_ids = set()
+            for r in self.anomaly_records:
+                anom_entry_ids.update(r.affected_entry_ids)
 
-        anom_breakdown = dict(Counter(rec.anomaly_type.value for rec in self.anomaly_records))
+            anom_breakdown = dict(Counter(rec.anomaly_type.value for rec in self.anomaly_records))
 
-        self.manifest = GroundTruthManifest(
-            dataset_id=batch_id,
-            generated_at=datetime.now().isoformat(),
-            seed=seed,
-            total_batches=1,
-            total_entries=len(self.batch.entries),
-            total_lines=self.batch.total_line_count,
-            clean_entries_count=len(self.batch.entries) - len(anom_entry_ids),
-            anomalous_entries_count=len(anom_entry_ids),
-            anomaly_rate=round(len(anom_entry_ids) / len(self.batch.entries), 4) if self.batch.entries else 0.0,
-            anomaly_breakdown=anom_breakdown,
-            anomalies=self.anomaly_records,
-        )
+            self.manifest = GroundTruthManifest(
+                dataset_id=batch_id,
+                generated_at=datetime.now().isoformat(),
+                seed=seed,
+                total_batches=1,
+                total_entries=len(self.batch.entries),
+                total_lines=self.batch.total_line_count,
+                clean_entries_count=len(self.batch.entries) - len(anom_entry_ids),
+                anomalous_entries_count=len(anom_entry_ids),
+                anomaly_rate=round(len(anom_entry_ids) / len(self.batch.entries), 4) if self.batch.entries else 0.0,
+                anomaly_breakdown=anom_breakdown,
+                anomalies=self.anomaly_records,
+            )
 
-        # Auto-export files for instant download
-        p_path = self.output_dir / "gl_feed.parquet"
-        _, p_hash = ParquetGLExporter.export(self.batch.entries, p_path)
-        self.manifest.dataset_sha256 = p_hash
-        self.exported_files["gl_feed.parquet"] = p_path
+            # Auto-export files for instant download
+            p_path = self.output_dir / "gl_feed.parquet"
+            _, p_hash = ParquetGLExporter.export(self.batch.entries, p_path)
+            self.manifest.dataset_sha256 = p_hash
+            self.exported_files["gl_feed.parquet"] = p_path
 
-        c_path = self.output_dir / "gl_feed.csv"
-        CSVGLExporter.export(self.batch.entries, c_path)
-        self.exported_files["gl_feed.csv"] = c_path
+            c_path = self.output_dir / "gl_feed.csv"
+            CSVGLExporter.export(self.batch.entries, c_path)
+            self.exported_files["gl_feed.csv"] = c_path
 
-        sap_results = SAPBSEGExporter.export(self.batch.entries, self.output_dir / "sap")
-        self.exported_files["SAP_BKPF.csv"] = sap_results["BKPF"][0]
-        self.exported_files["SAP_BSEG.csv"] = sap_results["BSEG"][0]
+            sap_results = SAPBSEGExporter.export(self.batch.entries, self.output_dir / "sap")
+            self.exported_files["SAP_BKPF.csv"] = sap_results["BKPF"][0]
+            self.exported_files["SAP_BSEG.csv"] = sap_results["BSEG"][0]
 
-        m_path = self.output_dir / "ground_truth_manifest.json"
-        ManifestExporter.export_json(self.manifest, m_path)
-        self.exported_files["ground_truth_manifest.json"] = m_path
+            # Export SAP S/4HANA ACDOCA Universal Journal
+            acdoca_p_path = self.output_dir / "acdoca_feed.parquet"
+            SAPACDOCAExporter.export_parquet(self.batch.entries, acdoca_p_path)
+            self.exported_files["acdoca_feed.parquet"] = acdoca_p_path
 
-        return self.get_summary(inv_report)
+            acdoca_c_path = self.output_dir / "acdoca_feed.csv"
+            SAPACDOCAExporter.export_csv(self.batch.entries, acdoca_c_path)
+            self.exported_files["acdoca_feed.csv"] = acdoca_c_path
+
+            m_path = self.output_dir / "ground_truth_manifest.json"
+            ManifestExporter.export_json(self.manifest, m_path)
+            self.exported_files["ground_truth_manifest.json"] = m_path
+
+            return self.get_summary(inv_report)
 
     def get_summary(self, inv_report: Optional[Any] = None) -> Dict[str, Any]:
         """Returns JSON summary of current generation."""
@@ -717,6 +729,25 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
               </a>
               <a href="/api/download/SAP_BSEG.csv" class="flex-1 text-center px-2 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition">
                 BSEG.csv
+              </a>
+            </div>
+          </div>
+
+          <!-- SAP S/4HANA ACDOCA Universal Journal Card -->
+          <div class="border border-slate-200 rounded-2xl p-4 bg-slate-50/50 flex flex-col justify-between">
+            <div>
+              <div class="w-8 h-8 rounded-lg bg-cyan-100 text-cyan-700 flex items-center justify-center font-bold text-xs mb-3">
+                ACDOCA
+              </div>
+              <h5 class="text-xs font-bold text-slate-900">SAP S/4HANA Universal Journal</h5>
+              <p class="text-[11px] text-slate-500 mt-1">50+ column enterprise schema (RLDNR, RBUKRS, GJAHR, BELNR, DOCLN, RACCT, WSL, TSL, KSL).</p>
+            </div>
+            <div class="mt-4 flex space-x-2">
+              <a href="/api/download/acdoca_feed.parquet" class="flex-1 text-center px-2 py-2 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold rounded-xl transition">
+                acdoca.parquet
+              </a>
+              <a href="/api/download/acdoca_feed.csv" class="flex-1 text-center px-2 py-2 bg-cyan-700 hover:bg-cyan-800 text-white text-xs font-semibold rounded-xl transition">
+                acdoca.csv
               </a>
             </div>
           </div>

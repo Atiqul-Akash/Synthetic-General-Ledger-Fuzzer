@@ -855,6 +855,8 @@ class DesktopGUI:
             "gl_feed.csv": "Standard CSV (Universal ERP Ingestion)",
             "SAP_BKPF.csv": "SAP BKPF Document Headers (ERP Ready)",
             "SAP_BSEG.csv": "SAP BSEG Document Line Items (ERP Ready)",
+            "acdoca_feed.parquet": "SAP S/4HANA ACDOCA Universal Journal (Parquet)",
+            "acdoca_feed.csv": "SAP S/4HANA ACDOCA Universal Journal (CSV)",
             "ground_truth_manifest.json": "Cryptographic Audit Ground-Truth Manifest",
         }
 

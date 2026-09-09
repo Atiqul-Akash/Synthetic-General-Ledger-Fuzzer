@@ -182,5 +182,33 @@ class Batch(BaseModel):
         return self.total_debits == self.total_credits
 
     @property
+    def total_debits_local(self) -> Decimal:
+        total = sum((entry.total_debits_local for entry in self.entries), Decimal("0.00"))
+        return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def total_credits_local(self) -> Decimal:
+        total = sum((entry.total_credits_local for entry in self.entries), Decimal("0.00"))
+        return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def is_balanced_local(self) -> bool:
+        return (self.total_debits_local - self.total_credits_local).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) == Decimal("0.00")
+
+    @property
+    def total_debits_group(self) -> Decimal:
+        total = sum((entry.total_debits_group for entry in self.entries), Decimal("0.00"))
+        return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def total_credits_group(self) -> Decimal:
+        total = sum((entry.total_credits_group for entry in self.entries), Decimal("0.00"))
+        return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def is_balanced_group(self) -> bool:
+        return (self.total_debits_group - self.total_credits_group).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) == Decimal("0.00")
+
+    @property
     def total_line_count(self) -> int:
         return sum(len(entry.lines) for entry in self.entries)

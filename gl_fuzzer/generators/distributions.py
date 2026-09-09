@@ -121,23 +121,29 @@ class BusinessCalendar:
 
     def random_month_end_date(self) -> date:
         """Returns a business date within the last 3 business days of a month (financial close)."""
-        month = int(self.rng.integers(1, 13))
-        # Find last calendar day of the given month
-        if month == 12:
-            last_day = date(self.start_date.year, 12, 31)
-        else:
-            last_day = date(self.start_date.year, month + 1, 1) - timedelta(days=1)
+        year_months = sorted(list({(d.year, d.month) for d in self.business_dates}))
+        if not year_months:
+            year_months = [(self.start_date.year, int(self.rng.integers(1, 13)))]
 
-        # Collect the last 3 legitimate business days (Mon-Fri) of that month
+        ym_idx = int(self.rng.integers(0, len(year_months)))
+        year, month = year_months[ym_idx]
+
+        # Find last calendar day of the selected year and month
+        if month == 12:
+            last_day = date(year, 12, 31)
+        else:
+            last_day = date(year, month + 1, 1) - timedelta(days=1)
+
+        biz_set = set(self.business_dates)
         biz_days = []
-        curr = last_day
-        while len(biz_days) < 3 and curr.month == month:
-            if curr.weekday() < 5:
+        curr = min(last_day, self.end_date)
+        while len(biz_days) < 3 and curr.month == month and curr >= self.start_date:
+            if curr in biz_set:
                 biz_days.append(curr)
             curr -= timedelta(days=1)
 
         if not biz_days:
-            return last_day
+            return self.random_business_date() if self.business_dates else last_day
         idx = int(self.rng.integers(0, len(biz_days)))
         return biz_days[idx]
 

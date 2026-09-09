@@ -48,8 +48,8 @@ class CSVGLExporter:
                         "entry_time": entry.entry_time,
                         "created_at": entry.created_at,
                         "created_by": entry.created_by,
-                        "reference": entry.reference,
-                        "header_text": entry.header_text,
+                        "reference": entry.reference or "",
+                        "header_text": entry.header_text or "",
                         "business_cycle": entry.business_cycle,
                         "line_id": line.line_id,
                         "line_number": line.line_number,
@@ -64,10 +64,10 @@ class CSVGLExporter:
                         "vendor_id": line.vendor_id or "",
                         "customer_id": line.customer_id or "",
                         "trading_partner": line.trading_partner or "",
-                        "line_text": line.line_text,
+                        "line_text": line.line_text or "",
                         "tax_code": line.tax_code or "",
                         "is_anomaly": entry.is_anomaly,
-                        "anomaly_ids": ",".join(entry.anomaly_ids),
+                        "anomaly_ids": ",".join(entry.anomaly_ids) if entry.anomaly_ids else "",
                     })
 
         hasher = hashlib.sha256()

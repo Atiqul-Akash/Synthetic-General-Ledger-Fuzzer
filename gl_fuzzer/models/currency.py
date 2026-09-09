@@ -79,7 +79,11 @@ class ExchangeRateProvider:
         if from_currency == Currency.USD:
             return Decimal("1.000000")
 
-        date_key = date_str[:10]  # Ensure YYYY-MM-DD
+        clean_date = str(date_str).strip()
+        if len(clean_date) == 8 and clean_date.isdigit():
+            date_key = f"{clean_date[:4]}-{clean_date[4:6]}-{clean_date[6:8]}"
+        else:
+            date_key = clean_date[:10]  # Ensure YYYY-MM-DD
         rate = self._rate_cache.get((date_key, from_currency))
         if rate is None:
             # Fallback to baseline

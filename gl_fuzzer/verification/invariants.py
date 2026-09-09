@@ -71,11 +71,35 @@ class InvariantVerifier:
                 InvariantViolation(
                     entry_id=entry.entry_id,
                     violation_type="UNBALANCED_ENTRY",
-                    expected=f"Debits == Credits (Delta: 0.00)",
+                    expected="Debits == Credits (Delta: 0.00)",
                     actual=f"Debits: {entry.total_debits}, Credits: {entry.total_credits} (Delta: {entry.balance_delta})",
                     message="Debit and credit legs do not sum to zero",
                 )
             )
+        else:
+            # Check 4: Multi-Currency Local Balance (when document currency is balanced)
+            if not entry.is_balanced_local:
+                violations.append(
+                    InvariantViolation(
+                        entry_id=entry.entry_id,
+                        violation_type="UNBALANCED_ENTRY_LOCAL",
+                        expected="Debits Local == Credits Local (Delta: 0.00)",
+                        actual=f"Debits: {entry.total_debits_local}, Credits: {entry.total_credits_local}",
+                        message="Debit and credit local legs do not sum to zero",
+                    )
+                )
+
+            # Check 5: Multi-Currency Group Balance (when document currency is balanced)
+            if not entry.is_balanced_group:
+                violations.append(
+                    InvariantViolation(
+                        entry_id=entry.entry_id,
+                        violation_type="UNBALANCED_ENTRY_GROUP",
+                        expected="Debits Group == Credits Group (Delta: 0.00)",
+                        actual=f"Debits: {entry.total_debits_group}, Credits: {entry.total_credits_group}",
+                        message="Debit and credit group legs do not sum to zero",
+                    )
+                )
 
         return violations
 

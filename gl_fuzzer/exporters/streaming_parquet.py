@@ -77,7 +77,7 @@ class StreamingParquetExporter:
                         "vendor_id": line.vendor_id or "",
                         "customer_id": line.customer_id or "",
                         "trading_partner": line.trading_partner or "",
-                        "line_text": line.line_text,
+                        "line_text": line.line_text or "",
                         "tax_code": line.tax_code or "",
                         "is_anomaly": entry.is_anomaly,
                         "anomaly_ids": ",".join(entry.anomaly_ids) if entry.anomaly_ids else "",
@@ -98,6 +98,9 @@ class StreamingParquetExporter:
         if self.writer is not None:
             self.writer.close()
             self.writer = None
+        elif not self.output_path.exists():
+            empty_table = pa.Table.from_pylist([], schema=self.schema)
+            pq.write_table(empty_table, self.output_path, compression=self.compression)
 
         hasher = hashlib.sha256()
         with open(self.output_path, "rb") as f:

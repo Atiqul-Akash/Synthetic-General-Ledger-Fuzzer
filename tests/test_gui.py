@@ -35,6 +35,8 @@ class TestGLAppState(unittest.TestCase):
         self.assertGreater(len(summary["sample_entries"]), 0)
 
         # Verify export files exist
+        self.assertIn("acdoca_feed.parquet", self.state.exported_files)
+        self.assertIn("acdoca_feed.csv", self.state.exported_files)
         for fname, fpath in self.state.exported_files.items():
             self.assertTrue(fpath.exists(), f"Export file {fname} should exist")
 

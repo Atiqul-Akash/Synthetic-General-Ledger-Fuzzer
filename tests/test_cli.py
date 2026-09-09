@@ -59,3 +59,25 @@ def test_cli_benchmark():
     result = runner.invoke(app, ["benchmark", "--count", "500"])
     assert result.exit_code == 0
     assert "Benchmark Results" in result.output
+
+
+def test_cli_generate_acdoca_streaming_multi_currency(tmp_path: Path):
+    out_dir = tmp_path / "stream_cli_out"
+    result = runner.invoke(
+        app,
+        [
+            "generate",
+            "--count", "150",
+            "--stream-chunks", "50",
+            "--acdoca",
+            "--multi-currency",
+            "--seasonality",
+            "--out-dir", str(out_dir),
+        ],
+    )
+    assert result.exit_code == 0
+    assert "ACDOCA" in result.output
+    assert (out_dir / "acdoca_feed.parquet").exists()
+    assert (out_dir / "acdoca_feed.csv").exists()
+    assert (out_dir / "ground_truth_manifest.json").exists()
+

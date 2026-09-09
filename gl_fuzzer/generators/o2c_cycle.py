@@ -217,3 +217,81 @@ class O2CCycleGenerator:
         )
 
         return [gi_entry, bill_entry, pay_entry]
+
+    def generate_single_customer_invoice(
+        self,
+        batch_id: str,
+        company_code: str = "1000",
+        amount: Optional[Decimal] = None,
+        customer: Optional[str] = None,
+        posting_date: Optional[str] = None,
+        posting_time: Optional[str] = None,
+        user: str = "AUTO_VF01_BATCH",
+    ) -> JournalEntry:
+        """Generates a standalone customer invoice entry (direct AR vs Revenue)."""
+        rev_amt = amount if amount is not None else self.amount_gen.generate()
+        cust = customer if customer is not None else str(self.rng.choice(self.customers))
+        profit_center = str(self.rng.choice(self.profit_centers))
+
+        if posting_date is None:
+            p_date = self.calendar.random_business_date()
+            p_date_str = p_date.isoformat()
+            year, month = p_date.year, p_date.month
+        else:
+            p_date_str = posting_date
+            parts = posting_date.split("-")
+            year, month = int(parts[0]), int(parts[1])
+
+        p_time_str = posting_time if posting_time is not None else self.calendar.normal_business_time().isoformat()
+        entry_id = f"DOC_AR_{uuid.uuid4().hex[:8].upper()}"
+
+        revenue_accounts = ["40000", "41000"]
+        rev_acc = str(self.rng.choice(revenue_accounts))
+        rev_name = self.coa.get_account(rev_acc).name if self.coa.get_account(rev_acc) else "Sales Revenue"
+
+        lines = [
+            LineItem(
+                line_id=f"{entry_id}-001",
+                entry_id=entry_id,
+                line_number=1,
+                account_code="11000",
+                account_name="Accounts Receivable - Trade",
+                debit_credit=DebitCredit.DEBIT,
+                amount=rev_amt,
+                posting_key="01",  # SAP Customer Debit
+                customer_id=cust,
+                profit_center=profit_center,
+                line_text=f"Direct customer billing to {cust}",
+            ),
+            LineItem(
+                line_id=f"{entry_id}-002",
+                entry_id=entry_id,
+                line_number=2,
+                account_code=rev_acc,
+                account_name=rev_name,
+                debit_credit=DebitCredit.CREDIT,
+                amount=rev_amt,
+                posting_key="50",
+                profit_center=profit_center,
+                line_text=f"Direct revenue recognition for {cust}",
+            ),
+        ]
+
+        return JournalEntry(
+            entry_id=entry_id,
+            batch_id=batch_id,
+            company_code=company_code,
+            fiscal_year=year,
+            fiscal_period=month,
+            document_type=DocumentType.DR,
+            document_number=f"900{self.rng.integers(100000, 999999)}",
+            posting_date=p_date_str,
+            document_date=p_date_str,
+            entry_time=p_time_str,
+            created_at=f"{p_date_str}T{p_time_str}Z",
+            created_by=user,
+            reference=f"INV-SALES-{self.rng.integers(100000, 999999)}",
+            header_text=f"Direct Invoice {cust}",
+            business_cycle="O2C",
+            lines=lines,
+        )

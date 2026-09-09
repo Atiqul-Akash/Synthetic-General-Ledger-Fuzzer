@@ -61,13 +61,17 @@ class BaseSynthesisEngine:
                     entry = self.p2p_gen.generate_single_vendor_invoice(batch_id=b_id, company_code=cmp)
                     entries.append(entry)
             elif roll < 0.90:
-                # O2C: Full 3-step flow or single transaction
+                # O2C: Full 3-step flow or single customer invoice
                 if (target_entry_count - len(entries)) >= 3:
-                    o2c_entries = self.o2c_gen.generate_full_o2c_flow(batch_id=b_id, company_code=cmp)
-                    entries.extend(o2c_entries)
+                    if self.rng.random() < 0.70:
+                        o2c_entries = self.o2c_gen.generate_full_o2c_flow(batch_id=b_id, company_code=cmp)
+                        entries.extend(o2c_entries)
+                    else:
+                        entry = self.o2c_gen.generate_single_customer_invoice(batch_id=b_id, company_code=cmp)
+                        entries.append(entry)
                 else:
-                    # fallback single invoice
-                    entry = self.p2p_gen.generate_single_vendor_invoice(batch_id=b_id, company_code=cmp)
+                    # fallback single customer invoice
+                    entry = self.o2c_gen.generate_single_customer_invoice(batch_id=b_id, company_code=cmp)
                     entries.append(entry)
             else:
                 # R2R: Depreciation, Accrual, or Payroll

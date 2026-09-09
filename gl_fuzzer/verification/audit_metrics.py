@@ -90,6 +90,8 @@ class ForensicAuditEvaluator:
                         dt = datetime.fromisoformat(entry.created_at.replace("Z", "+00:00"))
                     except Exception:
                         dt = datetime.strptime(f"{entry.posting_date} {entry.entry_time}", "%Y-%m-%d %H:%M:%S")
+                    if dt.tzinfo is not None:
+                        dt = dt.replace(tzinfo=None)
                     vendor_items[line.vendor_id].append({
                         "entry_id": entry.entry_id,
                         "line_id": line.line_id,

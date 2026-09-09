@@ -64,6 +64,10 @@ class ChunkedSynthesisEngine:
                     sampled_date = self.macro_calendar.sample_business_date()
                 entry.posting_date = sampled_date.isoformat()
                 entry.document_date = sampled_date.isoformat()
+                entry.fiscal_year = sampled_date.year
+                entry.fiscal_period = sampled_date.month
+                time_str = getattr(entry, "entry_time", "09:30:00") or "09:30:00"
+                entry.created_at = f"{sampled_date.isoformat()}T{time_str}Z"
 
             # 2. Apply Multi-Currency Triad (ASC 830)
             if self.multi_currency and self.fx_provider:
