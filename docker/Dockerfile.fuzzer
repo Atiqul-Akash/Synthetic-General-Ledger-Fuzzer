@@ -1,0 +1,7 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY pyproject.toml .
+RUN pip install --no-cache-dir pyarrow polars pydantic scipy rich typer numpy
+COPY gl_fuzzer/ ./gl_fuzzer/
+EXPOSE 8080
+CMD ["python", "-m", "gl_fuzzer.cli", "gui", "--port", "8080", "--host", "0.0.0.0"]

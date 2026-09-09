@@ -790,5 +790,73 @@ def stream_feed(
     pub.close()
 
 
+@app.command(name="cluster")
+def cluster_management(
+    action: str = typer.Argument("status", help="Cluster action: status, probe, start, stop"),
+):
+    """Manages the turnkey local Docker infrastructure (Redpanda, Mock SAP OData, Localstack)."""
+    import socket
+    import urllib.request
+    import time
+
+    console.print(Panel.fit(
+        "[bold cyan]Turnkey Enterprise Infrastructure Manager[/bold cyan]\n"
+        "[dim]Docker Compose Orchestration: Redpanda (Kafka), Mock SAP OData, Localstack[/dim]"
+    ))
+
+    services = [
+        ("Kafka Streaming (Redpanda)", "localhost", 19092, "Kafka Broker"),
+        ("Mock SAP S/4HANA OData V4", "localhost", 8000, "HTTP / OData V4"),
+        ("AWS Kinesis (Localstack)", "localhost", 4566, "Cloud Stream API"),
+        ("GL Fuzzer Web Dashboard", "localhost", 8080, "Web / REST API"),
+    ]
+
+    if action == "status" or action == "probe":
+        table = Table(title="Enterprise Cluster Service Status", show_header=True, header_style="bold cyan")
+        table.add_column("Service Name", style="bold")
+        table.add_column("Endpoint", style="cyan")
+        table.add_column("Protocol")
+        table.add_column("Status", justify="center")
+        table.add_column("Latency / Details")
+
+        for name, host, port, proto in services:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.5)
+            t0 = time.perf_counter()
+            result = s.connect_ex((host, port))
+            latency = (time.perf_counter() - t0) * 1000
+            s.close()
+
+            if result == 0:
+                status_str = "[bold green]ONLINE [UP][/bold green]"
+                lat_str = f"{latency:.1f} ms"
+            else:
+                status_str = "[dim red]OFFLINE[/dim red]"
+                lat_str = "Port unreachable (run 'docker compose up -d')"
+
+            table.add_row(name, f"{host}:{port}", proto, status_str, lat_str)
+
+        console.print(table)
+        console.print("\n[dim]To launch all local services in background: [bold]docker compose up -d[/bold][/dim]")
+
+    elif action == "start":
+        import subprocess
+        console.print("[yellow]Launching Docker Compose cluster...[/yellow]")
+        try:
+            subprocess.run(["docker", "compose", "up", "-d"], check=True)
+            console.print("[bold green]Cluster services initialized successfully![/bold green]")
+        except Exception as e:
+            console.print(f"[bold red]Docker Compose launch failed: {e}[/bold red]")
+
+    elif action == "stop":
+        import subprocess
+        console.print("[yellow]Stopping Docker Compose cluster...[/yellow]")
+        try:
+            subprocess.run(["docker", "compose", "down"], check=True)
+            console.print("[bold green]Cluster services stopped.[/bold green]")
+        except Exception as e:
+            console.print(f"[bold red]Docker Compose stop failed: {e}[/bold red]")
+
+
 if __name__ == "__main__":
     app()

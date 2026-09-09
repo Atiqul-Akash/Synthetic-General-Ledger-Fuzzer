@@ -410,3 +410,50 @@ class ForensicAuditEvaluator:
             "duplicate_document_numbers": duplicates[:20],
             "has_replay_attack": len(duplicates) > 0,
         }
+
+    @classmethod
+    def detect_multimodal_document_mismatches(
+        cls,
+        voucher_doc_pairs: List[Tuple[JournalEntry, Any]],
+    ) -> Dict[str, Any]:
+        """Detects discrepancies between structured GL vouchers and multimodal documents (PDF invoices)."""
+        flagged = []
+        for entry, doc_or_inv in voucher_doc_pairs:
+            inv_amount = getattr(doc_or_inv, "total_amount", None)
+            if inv_amount is None and hasattr(doc_or_inv, "invoice_data") and doc_or_inv.invoice_data:
+                inv_amount = doc_or_inv.invoice_data.total_amount
+
+            m_type = getattr(doc_or_inv, "mismatch_type", None)
+            if m_type is None and hasattr(doc_or_inv, "invoice_data") and doc_or_inv.invoice_data:
+                m_type = doc_or_inv.invoice_data.mismatch_type
+
+            mismatch_str = str(m_type.value if hasattr(m_type, "value") else m_type or "NO_MISMATCH")
+
+            if inv_amount is not None and entry.total_debits != inv_amount:
+                flagged.append({
+                    "entry_id": entry.entry_id,
+                    "document_number": entry.document_number,
+                    "ledger_amount": str(entry.total_debits),
+                    "invoice_amount": str(inv_amount),
+                    "discrepancy": str(abs(entry.total_debits - inv_amount)),
+                    "mismatch_type": "OCR_AMOUNT_MISMATCH",
+                    "reason": f"Discrepancy: Ledger booked {entry.total_debits} vs Document states {inv_amount}",
+                })
+            elif mismatch_str != "NO_MISMATCH" or any("MISMATCH" in a for a in entry.anomaly_ids):
+                flagged.append({
+                    "entry_id": entry.entry_id,
+                    "document_number": entry.document_number,
+                    "ledger_amount": str(entry.total_debits),
+                    "invoice_amount": str(inv_amount or entry.total_debits),
+                    "discrepancy": "0.00",
+                    "mismatch_type": mismatch_str,
+                    "reason": getattr(doc_or_inv, "mismatch_summary", None) or "Multimodal document discrepancy detected",
+                })
+
+        return {
+            "total_pairs_checked": len(voucher_doc_pairs),
+            "flagged_mismatches_count": len(flagged),
+            "flagged_mismatches": flagged,
+            "has_multimodal_mismatches": len(flagged) > 0,
+        }
+

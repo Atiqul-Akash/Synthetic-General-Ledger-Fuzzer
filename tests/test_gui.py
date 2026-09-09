@@ -76,6 +76,27 @@ class TestGLAppState(unittest.TestCase):
         self.assertEqual(res["jurisdiction"], "EU_DE")
         self.assertIn("net_tax_payable", res)
 
+    def test_state_apt_campaign(self):
+        res = self.state.run_apt_campaign(campaign_type="INVENTORY_MAP_CREEP_AND_OBSOLESCENCE", seed=42)
+        self.assertEqual(res["campaign_type"], "INVENTORY_MAP_CREEP_AND_OBSOLESCENCE")
+        self.assertGreaterEqual(len(res["milestones"]), 3)
+        self.assertGreater(res["vouchers_count"], 0)
+
+    def test_state_mdm_audit(self):
+        res = self.state.run_mdm_audit(seed=42, inject_anomalies=True)
+        self.assertGreater(res["total_findings"], 0)
+        self.assertGreater(res["vendor_count"], 0)
+        self.assertIn("screening", res)
+
+
+    def test_state_remediation(self):
+        res = self.state.generate_remediation(rule_name="RULE_WHT_EVASION")
+        self.assertIn("vulnerability_title", res)
+        self.assertIn("GGB0", res["code_or_rule"])
+        self.assertGreater(len(res["compensating_controls"]), 0)
+
+
+
 
 class TestDesktopGUI(unittest.TestCase):
     """Test suite for native Desktop GUI."""
@@ -158,6 +179,58 @@ class TestDesktopGUI(unittest.TestCase):
         probe_text = self.app.txt_conn_results.get("1.0", tk.END)
         self.assertIn("SAP OData API", probe_text)
         self.assertIn("Embedded Kafka", probe_text)
+
+    def test_desktop_gui_frontier_tab(self):
+        # Verify frontier tab widgets and variables
+        self.assertEqual(self.app.apt_campaign_var.get(), "INVENTORY_MAP_CREEP_AND_OBSOLESCENCE")
+        self.assertTrue(self.app.mdm_inject_anom_var.get())
+        self.assertEqual(self.app.remediation_rule_var.get(), "RULE_WHT_EVASION")
+
+        # Test sync completion handlers
+        fake_apt = {
+            "campaign_id": "APT-TEST-001",
+            "campaign_type": "INVENTORY_MAP_CREEP_AND_OBSOLESCENCE",
+            "total_quarters_active": 4,
+            "total_diverted_amount": 42000.00,
+            "actors": [{"role": "Rogue Buyer", "name": "Eve", "system_id": "U-123"}],
+            "phases": [{"phase": "INFILTRATION"}],
+            "vouchers": [],
+            "milestones": [{"quarter": 1, "phase": "INFILTRATION", "action_summary": "Test action"}],
+        }
+        self.app._on_apt_completed(fake_apt)
+        apt_text = self.app.txt_apt_results.get("1.0", tk.END)
+        self.assertIn("APT-TEST-001", apt_text)
+        self.assertIn("INVENTORY_MAP_CREEP_AND_OBSOLESCENCE", apt_text)
+
+        fake_mdm = {
+            "vendor_count": 10,
+            "customer_count": 8,
+            "employee_count": 12,
+            "total_findings": 1,
+            "findings": [{"anomaly_type": "SYBIL_VENDOR_DUPLICATE", "description": "Near-duplicate found"}],
+        }
+        self.app._on_mdm_completed(fake_mdm)
+        mdm_text = self.app.txt_mdm_results.get("1.0", tk.END)
+        self.assertIn("SYBIL_VENDOR_DUPLICATE", mdm_text)
+
+        fake_patch = {
+            "patch_id": "PATCH-001",
+            "target_vulnerability": "RULE_WHT_EVASION",
+            "verification_status": "VERIFIED_NEUTRALIZED",
+            "remediation_type": "SAP_GGB0_VALIDATION_RULE",
+            "code_or_rule_definition": "CHECK BKPF-BLART = 'KZ'",
+            "compensating_control": {
+                "control_id": "SOX-AP-09",
+                "review_activity": "Sample disbursements",
+                "frequency": "WEEKLY",
+                "evidence_required": "Signoff sheet",
+            },
+        }
+        self.app._on_remediation_completed(fake_patch)
+        rem_text = self.app.txt_remediation_results.get("1.0", tk.END)
+        self.assertIn("PATCH-001", rem_text)
+        self.assertIn("SOX-AP-09", rem_text)
+
 
 
 if __name__ == "__main__":

@@ -109,18 +109,22 @@ class DesktopGUI:
         self.tab_audit = ttk.Frame(self.notebook, padding=12)
         self.tab_export = ttk.Frame(self.notebook, padding=12)
         self.tab_enterprise = ttk.Frame(self.notebook, padding=12)
+        self.tab_frontier = ttk.Frame(self.notebook, padding=12)
 
         self.notebook.add(self.tab_synthesis, text=" ⚙️ 1. Synthesis & Generation ")
         self.notebook.add(self.tab_explorer, text=" 📑 2. Voucher & Ledger Explorer ")
         self.notebook.add(self.tab_audit, text=" 🛡️ 3. SOX-404 Forensic Audit ")
         self.notebook.add(self.tab_export, text=" 📦 4. Export & Artifacts ")
         self.notebook.add(self.tab_enterprise, text=" ⚡ 5. Enterprise & Dynamic Fuzzing ")
+        self.notebook.add(self.tab_frontier, text=" 🧬 6. APT, MDM & Remediation ")
 
         self._init_synthesis_tab()
         self._init_explorer_tab()
         self._init_audit_tab()
         self._init_export_tab()
         self._init_enterprise_tab()
+        self._init_frontier_tab()
+
 
     def _build_status_bar(self):
         status_bar = ttk.Frame(self.root, padding=(12, 4))
@@ -1150,6 +1154,272 @@ class DesktopGUI:
             lines.append(f"Probe error: {e}")
 
         self.txt_conn_results.insert(tk.END, "\n".join(lines))
+
+    # =========================================================================
+    # TAB 6: APT CAMPAIGNS, MDM & REMEDIATION ORACLES
+    # =========================================================================
+    def _init_frontier_tab(self):
+        container = ttk.Frame(self.tab_frontier)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        # Left Column: APT Orchestration
+        left_col = ttk.LabelFrame(container, text="Multi-Stage Financial APT Campaign Orchestration", padding=10)
+        left_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
+
+        ttk.Label(left_col, text="Adversarial Narrative Template:", font=("Segoe UI", 10, "bold")).pack(anchor=tk.W)
+        self.apt_campaign_var = tk.StringVar(value="INVENTORY_MAP_CREEP_AND_OBSOLESCENCE")
+        apt_combo = ttk.Combobox(
+            left_col,
+            textvariable=self.apt_campaign_var,
+            values=[
+                "INVENTORY_MAP_CREEP_AND_OBSOLESCENCE",
+                "ENRON_SPV_ROUND_TRIPPING",
+                "EXECUTIVE_DOA_SMURFING_WITH_KICKBACK",
+            ],
+            state="readonly",
+            width=38,
+        )
+        apt_combo.pack(anchor=tk.W, pady=(4, 8))
+
+        self.btn_apt = tk.Button(
+            left_col,
+            text="🚀 Generate Multi-Quarter APT Campaign",
+            bg="#7c3aed",
+            fg="#ffffff",
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            padx=10,
+            pady=4,
+            cursor="hand2",
+            command=self._start_apt_campaign_thread,
+        )
+        self.btn_apt.pack(fill=tk.X, pady=(2, 6))
+
+        self.txt_apt_results = tk.Text(left_col, height=18, width=45, font=("Consolas", 9), relief="solid", bd=1)
+        self.txt_apt_results.pack(fill=tk.BOTH, expand=True)
+        self.txt_apt_results.insert(tk.END, "Select an APT campaign narrative template and launch orchestration.")
+
+        # Right Column: MDM & Remediation
+        right_col = ttk.Frame(container)
+        right_col.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(6, 0))
+
+        # MDM Frame
+        mdm_frame = ttk.LabelFrame(right_col, text="Deep Master Data Integrity & Sybil Vendor Screening", padding=10)
+        mdm_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
+
+        self.mdm_inject_anom_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            mdm_frame,
+            text="Inject Active Master Data Tampering (Sybil / Routing Drift / Collusion)",
+            variable=self.mdm_inject_anom_var,
+        ).pack(anchor=tk.W, pady=(0, 4))
+
+        self.btn_mdm_audit = tk.Button(
+            mdm_frame,
+            text="🔍 Run Deep MDM Registry Screening",
+            bg="#0284c7",
+            fg="#ffffff",
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            padx=10,
+            pady=4,
+            cursor="hand2",
+            command=self._start_mdm_audit_thread,
+        )
+        self.btn_mdm_audit.pack(fill=tk.X, pady=(2, 6))
+
+        self.txt_mdm_results = tk.Text(mdm_frame, height=8, width=45, font=("Consolas", 9), relief="solid", bd=1)
+        self.txt_mdm_results.pack(fill=tk.BOTH, expand=True)
+        self.txt_mdm_results.insert(tk.END, "Click 'Run Deep MDM Registry Screening' to audit master records.")
+
+        # Remediation Frame
+        rem_frame = ttk.LabelFrame(right_col, text="Automated Remediation & Healing Loop Advisor", padding=10)
+        rem_frame.pack(fill=tk.BOTH, expand=True, pady=(6, 0))
+
+        rem_opts = ttk.Frame(rem_frame)
+        rem_opts.pack(fill=tk.X, pady=(0, 4))
+        ttk.Label(rem_opts, text="Target Rule:").pack(side=tk.LEFT)
+        self.remediation_rule_var = tk.StringVar(value="RULE_WHT_EVASION")
+        rem_combo = ttk.Combobox(
+            rem_opts,
+            textvariable=self.remediation_rule_var,
+            values=[
+                "RULE_WHT_EVASION",
+                "RULE_PHANTOM_PO",
+                "RULE_INVENTORY_SHRINKAGE",
+                "RULE_SQL_INJECTION",
+                "RULE_DOA_SMURFING",
+            ],
+            state="readonly",
+            width=26,
+        )
+        rem_combo.pack(side=tk.LEFT, padx=6)
+
+        self.btn_remediation = tk.Button(
+            rem_frame,
+            text="🛠️ Auto-Generate Remediation Patch (SAP / SQL / SOX)",
+            bg="#16a34a",
+            fg="#ffffff",
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            padx=10,
+            pady=4,
+            cursor="hand2",
+            command=self._start_remediation_thread,
+        )
+        self.btn_remediation.pack(fill=tk.X, pady=(4, 6))
+
+        self.txt_remediation_results = tk.Text(rem_frame, height=8, width=45, font=("Consolas", 9), relief="solid", bd=1)
+        self.txt_remediation_results.pack(fill=tk.BOTH, expand=True)
+        self.txt_remediation_results.insert(tk.END, "Generate automated patches for verified accounting vulnerabilities.")
+
+    # --- APT Campaign Handlers ---
+    def _start_apt_campaign_thread(self):
+        c_type = self.apt_campaign_var.get()
+        self.btn_apt.config(state=tk.DISABLED)
+
+        def _worker():
+            try:
+                res = self.state.run_apt_campaign(campaign_type=c_type, seed=42)
+                self.root.after(0, lambda: self._on_apt_completed(res))
+            except Exception as e:
+                err = str(e)
+                self.root.after(0, lambda: self._on_apt_error(err))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_apt_completed(self, record: Dict[str, Any]):
+        self.btn_apt.config(state=tk.NORMAL)
+        self.txt_apt_results.delete("1.0", tk.END)
+
+        adv = record.get("primary_adversary") or {}
+        milestones = record.get("milestones", [])
+        lines = [
+            f"=== APT Adversarial Campaign Orchestrated ===",
+            f"Campaign ID:        {record.get('campaign_id')}",
+            f"Narrative Title:    {record.get('title')}",
+            f"Campaign Type:      {record.get('campaign_type')}",
+            f"Primary Adversary:  {adv.get('name', 'Unknown')} ({adv.get('role', '')})",
+            f"Target Entities:    {', '.join(record.get('target_entities', []))}",
+            f"Total Diverted:     ${float(record.get('total_illicit_volume', 0)):,.2f}",
+            f"Vouchers Generated: {record.get('total_entries_generated', len(record.get('vouchers', [])))}",
+            f"Concealed at Close: {record.get('is_concealed_at_close', True)}",
+            f"",
+            f"--- Campaign Milestones ({len(milestones)}) ---",
+        ]
+        for m in milestones:
+            desc = m.get('description') or m.get('action_summary', '')
+            lines.append(f"  [{m.get('quarter', 'Q?')} | {m.get('phase', '')}] {desc[:60]}")
+
+        self.txt_apt_results.insert(tk.END, "\n".join(lines))
+
+    def _on_apt_error(self, err: str):
+        self.btn_apt.config(state=tk.NORMAL)
+        messagebox.showerror("APT Campaign Error", f"Failed to orchestrate campaign:\n{err}")
+
+    # --- MDM Audit Handlers ---
+    def _start_mdm_audit_thread(self):
+        inject_anom = self.mdm_inject_anom_var.get()
+        self.btn_mdm_audit.config(state=tk.DISABLED)
+
+        def _worker():
+            try:
+                res = self.state.run_mdm_audit(seed=42, inject_anomalies=inject_anom)
+                self.root.after(0, lambda: self._on_mdm_completed(res))
+            except Exception as e:
+                err = str(e)
+                self.root.after(0, lambda: self._on_mdm_error(err))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_mdm_completed(self, report: Dict[str, Any]):
+        self.btn_mdm_audit.config(state=tk.NORMAL)
+        self.txt_mdm_results.delete("1.0", tk.END)
+
+        lines = [
+            f"=== Deep Master Data Integrity Report ===",
+            f"Vendors Screened:   {report.get('vendor_count', 0)}",
+            f"Customers Screened: {report.get('customer_count', 0)}",
+            f"Employees Screened: {report.get('employee_count', 0)}",
+            f"Total Findings:     {report.get('total_findings', 0)}",
+            f"",
+        ]
+        scr = report.get("screening", {})
+        sybils = scr.get("sybils", [])
+        if sybils:
+            lines.append(f"--- Sybil Vendors ({len(sybils)}) ---")
+            for s in sybils[:5]:
+                lines.append(f"  {s.get('vendor_1', {}).get('name')} <-> {s.get('vendor_2', {}).get('name')}")
+        collusions = scr.get("collusions", [])
+        if collusions:
+            lines.append(f"--- Collusion Violations ({len(collusions)}) ---")
+            for c in collusions[:5]:
+                lines.append(f"  Employee {c.get('employee_id')} shares bank with Vendor {c.get('vendor_id')}")
+
+        findings = report.get("findings", [])
+        if findings:
+            lines.append("--- Detected Master Data Integrity Violations ---")
+            for f in findings:
+                lines.append(f"  [{f.get('anomaly_type')}] {f.get('description')}")
+
+        if not sybils and not collusions and not findings:
+            lines.append("No active Master Data anomalies found.")
+
+        self.txt_mdm_results.insert(tk.END, "\n".join(lines))
+
+
+    def _on_mdm_error(self, err: str):
+        self.btn_mdm_audit.config(state=tk.NORMAL)
+        messagebox.showerror("MDM Screening Error", f"Failed to screen master data:\n{err}")
+
+    # --- Remediation Handlers ---
+    def _start_remediation_thread(self):
+        r_name = self.remediation_rule_var.get()
+        self.btn_remediation.config(state=tk.DISABLED)
+
+        def _worker():
+            try:
+                res = self.state.generate_remediation(rule_name=r_name)
+                self.root.after(0, lambda: self._on_remediation_completed(res))
+            except Exception as e:
+                err = str(e)
+                self.root.after(0, lambda: self._on_remediation_error(err))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_remediation_completed(self, patch: Dict[str, Any]):
+        self.btn_remediation.config(state=tk.NORMAL)
+        self.txt_remediation_results.delete("1.0", tk.END)
+
+        lines = [
+            f"=== Defense Remediation Patch Generated ===",
+            f"Patch ID:     {patch.get('patch_id')}",
+            f"Target Vuln:  {patch.get('vulnerability_title', patch.get('target_vulnerability', ''))}",
+            f"Target Type:  {patch.get('target_type')}",
+            f"Status:       {patch.get('verification_status')}",
+            f"",
+            f"--- Target Rule / Code ---",
+            str(patch.get("code_or_rule") or patch.get("code_or_rule_definition", "")).strip(),
+            f"",
+            f"--- SOX 404 Compensating Control ---",
+        ]
+        ctrls = patch.get("compensating_controls") or []
+        if ctrls:
+            ctrl = ctrls[0]
+            lines.append(f"  ID: {ctrl.get('control_id')} | Activity: {ctrl.get('control_activity') or ctrl.get('review_activity')}")
+            lines.append(f"  Frequency: {ctrl.get('frequency')} | Role: {ctrl.get('responsible_role')}")
+        elif patch.get("compensating_control"):
+            ctrl = patch.get("compensating_control")
+            lines.append(f"  ID: {ctrl.get('control_id')} | Activity: {ctrl.get('review_activity')}")
+            lines.append(f"  Frequency: {ctrl.get('frequency')}")
+
+        self.txt_remediation_results.insert(tk.END, "\n".join(lines))
+
+
+    def _on_remediation_error(self, err: str):
+        self.btn_remediation.config(state=tk.NORMAL)
+        messagebox.showerror("Remediation Error", f"Failed to generate patch:\n{err}")
+
 
     def _initial_load(self):
         """Initial background pre-population so app starts ready."""

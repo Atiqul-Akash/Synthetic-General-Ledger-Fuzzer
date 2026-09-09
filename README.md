@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License" />
-  <img src="https://img.shields.io/badge/Tests-150%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="150 Tests Passed" />
+  <img src="https://img.shields.io/badge/Tests-172%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="172 Tests Passed" />
   <img src="https://img.shields.io/badge/Version-0.3.0%20Enterprise-blueviolet?style=for-the-badge" alt="v0.3.0 Enterprise" />
   <img src="https://img.shields.io/badge/Double--Entry-Zero--Sum%20Verified-emerald?style=for-the-badge" alt="Double-Entry Invariant" />
   <img src="https://img.shields.io/badge/SOX-404-Compliant-indigo?style=for-the-badge" alt="SOX-404 Compliant" />
@@ -24,13 +24,19 @@
 ## Table of Contents
 
 - [Executive Summary](#executive-summary)
-- [Enterprise Architecture (v0.3)](#enterprise-architecture-v20)
-- [Five Enterprise Architectural Pillars (v0.3)](#five-enterprise-architectural-pillars-v20)
+- [Enterprise Architecture](#enterprise-architecture)
+- [Five Enterprise Architectural Pillars](#five-enterprise-architectural-pillars)
   - [1. Stateful, Bidirectional ERP Synchronization](#1-stateful-bidirectional-erp-synchronization)
   - [2. Multi-Jurisdictional Tax Localization Engine](#2-multi-jurisdictional-tax-localization-engine)
   - [3. Dynamic Security Fuzzing Feedback Loop](#3-dynamic-security-fuzzing-feedback-loop)
   - [4. Operational Logistics & Stateful Subledgers](#4-operational-logistics--stateful-subledgers)
   - [5. Real-Time Event Streaming Sinks](#5-real-time-event-streaming-sinks)
+- [Five Advanced Architectural Frontiers](#five-advanced-architectural-frontiers)
+  - [1. Automated Remediation Oracles & Healing Loop](#1-automated-remediation-oracles--healing-loop)
+  - [2. Multi-Stage Financial APT Campaign Orchestration](#2-multi-stage-financial-apt-campaign-orchestration)
+  - [3. Deep Master Data Management (MDM) Integrity & Sybil Fuzzing](#3-deep-master-data-management-mdm-integrity--sybil-fuzzing)
+  - [4. Unstructured Financial Context & Multimodal Artifacts](#4-unstructured-financial-context--multimodal-artifacts)
+  - [5. Turnkey Infrastructure Orchestration & CLI Cluster Management](#5-turnkey-infrastructure-orchestration--cli-cluster-management)
 - [Core Business Cycles](#core-business-cycles)
   - [Procure-to-Pay (P2P)](#1-procure-to-pay-p2p)
   - [Order-to-Cash (O2C)](#2-order-to-cash-o2c)
@@ -42,14 +48,15 @@
 - [Double-Entry Mathematical Invariant Gate](#double-entry-mathematical-invariant-gate)
 - [Dual Graphical User Interfaces](#dual-graphical-user-interfaces)
   - [1. Modern Web GUI (Browser-Based)](#1-modern-web-gui)
-  - [2. Native Windows Desktop GUI (Offline Tkinter v0.3)](#2-native-windows-desktop-gui)
+  - [2. Native Windows Desktop GUI (Offline Tkinter 6-Tab Interface)](#2-native-windows-desktop-gui)
 - [Quick Start & One-Click Launchers](#quick-start--one-click-launchers)
 - [CLI Reference](#cli-reference)
 - [Dual-Artifact Export Formats](#dual-artifact-export-formats)
 - [Automated Forensic Audit Screening (SOX-404)](#automated-forensic-audit-screening)
-- [Automated Test Suite (150 Tests)](#automated-test-suite)
+- [Automated Test Suite (172 Tests)](#automated-test-suite)
 - [Repository Structure](#repository-structure)
 - [Contributing & License](#contributing--license)
+
 
 ---
 
@@ -177,6 +184,75 @@ Enables continuous streaming of double-entry financial events into modern distri
 
 ---
 
+## Five Advanced Architectural Frontiers
+
+Beyond the core pillars, the fuzzer introduces five cutting-edge enterprise capabilities addressing real-world corporate defense, multi-quarter adversarial persistent threats, master data compromise, unstructured document cross-checks, and turnkey cluster orchestration:
+
+### 1. Automated Remediation Oracles & Healing Loop
+*Package: `gl_fuzzer/remediation/`*
+
+Closes the audit loop by providing defense-side automated repair:
+- **Remediation Advisor (`engine.py`)**: Translates exposed vulnerabilities into concrete, deployable defenses:
+  - **SAP S/4HANA Validation & Substitution Rules (`GGB0`)**: Generates exact prerequisite/check syntax (e.g. blocking vendor payments $\ge \$500.00$ lacking statutory withholding tax).
+  - **SAP NetWeaver ABAP BAdIs (`BADI_ACC_DOCUMENT`)**: Produces type-checked ABAP enhancement implementations (e.g. enforcing 3-way match Goods Receipt verification prior to invoice clearing).
+  - **Relational SQL Constraints**: Emits DDL check constraints (`CHECK (amount > 0 AND ...)`) neutralizing balance or injection attacks.
+  - **SOX-404 Compensating Controls**: Formal internal control narratives (ID, frequency, review procedure, audit evidence required).
+- **Closed-Loop Healing Runner (`healing_loop.py`)**: Re-runs the exploit generator against simulated patched environments to programmatically verify that the attack vector is neutralized without introducing regressions.
+
+### 2. Multi-Stage Financial APT Campaign Orchestration
+*Package: `gl_fuzzer/campaigns/`*
+
+Real-world corporate financial crimes are coordinated, multi-quarter conspiracies rather than isolated events:
+- **Narrative Orchestrator (`orchestrator.py`)**: Coordinates multi-phase adversarial campaigns across 4 sequential fiscal quarters:
+  - **Phase 1: Infiltration & Seeding**: Unauthorized micro-adjustments or small test transactions.
+  - **Phase 2: Staging & Manipulation**: Material Moving Average Price (MAP) creep, phantom inventory accumulation, or threshold smurfing.
+  - **Phase 3: Laundering & Capital Transfer**: Cross-company transfers through Special Purpose Vehicles (SPVs) or offshore shell entities.
+  - **Phase 4: Year-End Concealment**: Washing illicit balances into suspense accounts (`99999`) or write-downs just before annual audit close.
+- **Narrative Templates**:
+  - `INVENTORY_MAP_CREEP_AND_OBSOLESCENCE`: Plant controller gradually inflates unit costs, creating fictitious asset value before booking year-end write-offs.
+  - `ENRON_SPV_ROUND_TRIPPING`: Circular multi-hop intercompany transfers (`A -> B -> C -> A`) to fabricate operational revenue.
+  - `EXECUTIVE_DOA_SMURFING_WITH_KICKBACK`: Coordinated invoice splitting under approval thresholds coupled with vendor kickbacks.
+- **Invariant Integrity**: All campaign vouchers strictly adhere to zero-sum double-entry balance across all 3 currency legs.
+
+### 3. Deep Master Data Management (MDM) Integrity & Sybil Fuzzing
+*Package: `gl_fuzzer/mdm/`*
+
+Detects and injects stealthy compromises residing in enterprise master registries before transactional postings occur:
+- **Master Data Manager (`engine.py`)**: Unified registry managing Vendor Master, Customer Master, and Employee Master records.
+- **Master Data Mutation Operators (`mutators.py`)**:
+  - **Sybil Vendor Clones (`VendorSybilMutator`)**: Injects near-duplicate vendor entities with shifted corporate suffixes (`"Logistics LLC"` $\leftrightarrow$ `"Logistics Corp"`) and mutated tax IDs.
+  - **24–48h Pre-Disbursement Bank Routing Tampering (`BankRoutingTamperingMutator`)**: Simulates insider or compromised credential attacks where bank routing/account numbers are updated immediately prior to automated payment runs (`F110`).
+  - **Employee-Vendor Collusion (`EmployeeVendorCollusionMutator`)**: Establishes clandestine ties between internal employees and external vendors (identical bank accounts or physical street addresses).
+- **Integrity Screening**: Evaluates Levenshtein/SequenceMatcher fuzzy name similarity, detects bank routing update temporal proximity, and performs bipartite graph matching across employee and vendor directories.
+
+### 4. Unstructured Financial Context & Multimodal Artifacts
+*Package: `gl_fuzzer/documents/`*
+
+Financial forensics requires verifying structured ledger vouchers against their corresponding unstructured source documents:
+- **Zero-Dependency PDF 1.4 Generator (`pdf_generator.py`)**: A pure-Python binary PDF serialization engine that builds valid, renderable PDF invoices with itemized tables, corporate headers, subtotal/tax calculations, and vector rules—with zero external C-libraries or system packages.
+- **Corporate Approval Email Chains (`email_generator.py`)**: Generates compliant RFC-2822 `.eml` and text email threads simulating urgent CFO/controller override approvals and audit paper trails.
+- **Multimodal Mismatch Injector (`mismatch_injector.py`)**: Synchronizes PDF invoices with structured GL journal entries and injects multimodal discrepancies:
+  - **OCR Amount Mismatches**: PDF invoice states a different amount than booked in the general ledger.
+  - **IBAN/Routing Divergence**: PDF displays legitimate vendor payment instructions while structured payment vouchers route funds to an unauthorized account.
+  - **Audit Detection**: Evaluated via `ForensicAuditEvaluator.detect_multimodal_document_mismatches`.
+
+### 5. Turnkey Infrastructure Orchestration & CLI Cluster Management
+*Package: `docker/`, `docker-compose.yml`, `cli.py`*
+
+Deploy full-scale enterprise simulation sandboxes with a single command:
+- **Docker Compose Stack (`docker-compose.yml`)**:
+  - **Redpanda Kafka**: Ultra-fast Kafka-compatible streaming message broker in KRaft mode (no Zookeeper required).
+  - **Mock SAP S/4HANA OData Gateway**: Lightweight Python container exposing live `/health`, `/sap/opu/odata4/.../JournalEntry`, and CSRF token endpoints.
+  - **LocalStack**: Local AWS Kinesis simulation.
+  - **GL-Fuzzer Worker**: Pre-configured container for streaming ingestion.
+- **CLI Cluster Management**:
+  - `gl-fuzzer cluster status`: Real-time socket and HTTP probing of all streaming and ERP services.
+  - `gl-fuzzer cluster probe`: Validates OData, RFC, and Kafka broker endpoints.
+  - `gl-fuzzer cluster start | stop`: Launches or tears down the Docker Compose environment.
+
+---
+
+
 ## Core Business Cycles
 
 The engine models three comprehensive business accounting cycles according to standard ERP practices (such as SAP S/4HANA and Oracle Financials):
@@ -293,16 +369,17 @@ The project includes two complete graphical user interfaces tailored for develop
   - **SOX-404 Screening Center**: Visual Benford curve comparison chart, DOA cluster breakdowns, off-hours distribution, and intercompany loops.
   - **One-Click Downloads**: Direct browser downloads for Parquet, CSV, SAP BSEG/BKPF, **SAP S/4HANA ACDOCA (Parquet & CSV)**, and JSON manifests.
 
-### 2. Native Windows Desktop GUI (Offline Tkinter v0.3)
+### 2. Native Windows Desktop GUI (Offline Tkinter 6-Tab Interface)
 - **Stack**: Native Python `tkinter` and `ttk` with styled widgets.
 - **100% Offline**: Operates completely disconnected from the internet.
 - **Thread-Safe**: Background worker execution with synchronized state locking.
-- **5 Dedicated Workspaces**:
+- **6 Dedicated Workspaces**:
   1. *⚙️ 1. Synthesis & Generation*: Sliders, anomaly toggles, tax jurisdiction, withholding tax, and subledger matching toggles.
   2. *📑 2. Voucher & Ledger Explorer*: Paginated table with drilldown into debit/credit line items.
   3. *🛡️ 3. SOX-404 Forensic Audit*: Diagnostic cards with status badges and forensic findings.
   4. *📦 4. Export & Artifacts*: Target folder picker, format descriptions, and direct file opener.
   5. *⚡ 5. Enterprise & Dynamic Fuzzing*: Dynamic security fuzzing campaigns (Mock ERP vs SQLite ACID target), statutory tax return computation, and live ERP connector probing.
+  6. *🧬 6. APT, MDM & Remediation*: Orchestrates multi-quarter adversarial persistent threat campaigns, deep master data integrity & sybil vendor audits, and auto-generates SAP GGB0 / ABAP / SQL / SOX remediation patches.
 
 ---
 
@@ -321,7 +398,7 @@ Double-click **`run.bat`** in the project root:
   [2] Native Windows Desktop GUI (Offline Window)
   [3] Generate Synthetic Dataset (CLI - 1,000 entries)
   [4] Run SOX-404 Forensic Audit on Generated Dataset
-  [5] Run Complete Automated Test Suite (150 tests)
+  [5] Run Complete Automated Test Suite (172 tests)
   [6] Exit
 ```
 
@@ -361,15 +438,22 @@ python -m gl_fuzzer.cli verify --dataset ./output/gl_feed.parquet --manifest ./o
 # 7. Run Automated SOX-404 Forensic Audit Screening
 python -m gl_fuzzer.cli audit-report --dataset ./enterprise_output/acdoca_feed.parquet --manifest ./enterprise_output/ground_truth_manifest.json
 
-# 8. Benchmark Generation and Fuzzing Throughput
+# 8. Turnkey Infrastructure Cluster Management
+python -m gl_fuzzer.cli cluster status           # Probe all live ERP and Kafka cluster services
+python -m gl_fuzzer.cli cluster probe            # Test SAP OData, RFC, Oracle, and Kafka connectivity
+python -m gl_fuzzer.cli cluster start            # Spin up Docker Compose cluster
+python -m gl_fuzzer.cli cluster stop             # Shut down cluster containers
+
+# 9. Benchmark Generation and Fuzzing Throughput
 python -m gl_fuzzer.cli benchmark --count 10000 --anomaly-rate 0.05
 
-# 9. Launch Graphical Interfaces
+# 10. Launch Graphical Interfaces
 python -m gl_fuzzer.cli gui --port 8080          # Web GUI
 python -m gl_fuzzer.cli gui --mode desktop      # Desktop GUI
 ```
 
 ---
+
 
 ## Dual-Artifact Export Formats
 
@@ -415,31 +499,36 @@ python -m pytest -v
 platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0
 rootdir: C:\PROJECT\PYTHON
 configfile: pyproject.toml
-collected 150 items
+collected 172 items
 
 tests/test_acdoca.py ....                                                [  2%]
-tests/test_anomalies.py ......                                           [  6%]
-tests/test_audit_metrics.py .....                                        [ 10%]
+tests/test_anomalies.py ......                                           [  5%]
+tests/test_audit_metrics.py .....                                        [  8%]
+tests/test_campaigns.py ...                                              [ 10%]
 tests/test_cli.py ...                                                    [ 12%]
-tests/test_coa_models.py ...                                             [ 14%]
-tests/test_connectors.py ..............                                  [ 23%]
-tests/test_cycles.py ....                                                [ 26%]
-tests/test_edge_cases.py ............                                    [ 34%]
-tests/test_exporters.py ....                                             [ 36%]
-tests/test_forensic_ext.py .........                                     [ 42%]
-tests/test_fuzzing.py ..........                                         [ 49%]
-tests/test_generators.py ....                                            [ 52%]
-tests/test_gui.py ........                                               [ 57%]
-tests/test_invariants.py ....                                            [ 60%]
-tests/test_macro_calendar.py .....                                       [ 63%]
+tests/test_coa_models.py ...                                             [ 13%]
+tests/test_connectors.py ..............                                  [ 22%]
+tests/test_cycles.py ....                                                [ 24%]
+tests/test_documents.py ....                                             [ 26%]
+tests/test_edge_cases.py ............                                    [ 33%]
+tests/test_exporters.py ....                                             [ 35%]
+tests/test_forensic_ext.py .........                                     [ 41%]
+tests/test_fuzzing.py ..........                                         [ 47%]
+tests/test_generators.py ....                                            [ 49%]
+tests/test_gui.py ............                                           [ 56%]
+tests/test_invariants.py ....                                            [ 58%]
+tests/test_macro_calendar.py .....                                       [ 61%]
+tests/test_mdm.py ....                                                   [ 63%]
 tests/test_models.py ...........                                         [ 70%]
-tests/test_multi_currency.py ........                                    [ 76%]
-tests/test_streaming.py .....                                            [ 79%]
-tests/test_streaming_sinks.py .........                                  [ 85%]
-tests/test_subledgers.py .........                                       [ 91%]
+tests/test_multi_currency.py ........                                    [ 75%]
+tests/test_orchestration.py ...                                          [ 76%]
+tests/test_remediation.py ....                                           [ 79%]
+tests/test_streaming.py .....                                            [ 81%]
+tests/test_streaming_sinks.py .........                                  [ 87%]
+tests/test_subledgers.py .........                                       [ 92%]
 tests/test_tax.py .............                                          [100%]
 
-============================= 150 passed in 3.25s =============================
+============================= 172 passed in 12.78s =============================
 ```
 
 ---
@@ -450,9 +539,25 @@ tests/test_tax.py .............                                          [100%]
 Synthetic-General-Ledger-Fuzzer/
 ├── gl_fuzzer/
 │   ├── __init__.py                # Package root (v0.3.0 Enterprise)
-│   ├── cli.py                     # Typer / Rich command-line interface
-│   ├── web_gui.py                 # Modern browser dashboard with ACDOCA cards & endpoints
-│   ├── desktop_gui.py             # Native offline Tkinter v0.3 GUI (5 tabs, Thread-safe)
+│   ├── cli.py                     # Typer / Rich CLI with cluster management
+│   ├── web_gui.py                 # Modern browser dashboard with REST API & ACDOCA cards
+│   ├── desktop_gui.py             # Native offline Tkinter GUI (6 tabs, Thread-safe)
+│   ├── campaigns/                 # [Frontier 2] Multi-Stage Financial APT Campaigns
+│   │   ├── models.py              # APTCampaignRecord, APTActor, APTPhaseMilestone
+│   │   └── orchestrator.py        # Multi-quarter adversarial narrative orchestrator
+│   ├── mdm/                       # [Frontier 3] Deep Master Data Management (MDM)
+│   │   ├── models.py              # VendorMaster, CustomerMaster, EmployeeMaster, MDMAnomalyRecord
+│   │   ├── mutators.py            # Sybil clones, 24h bank tampering, employee collusion
+│   │   └── engine.py              # MasterDataManager with fuzzy screening & graph matching
+│   ├── remediation/               # [Frontier 1] Automated Remediation Oracles & Healing Loop
+│   │   ├── models.py              # RemediationPatch, CompensatingControl, VerificationStatus
+│   │   ├── engine.py              # RemediationAdvisor (SAP GGB0, ABAP BAdI, SQL, SOX)
+│   │   └── healing_loop.py        # Closed-loop exploit neutralization runner
+│   ├── documents/                 # [Frontier 4] Unstructured Context & Multimodal Artifacts
+│   │   ├── models.py              # SyntheticInvoiceData, DocumentMismatchType, ItemLine
+│   │   ├── pdf_generator.py       # Pure-Python zero-dependency PDF 1.4 binary engine
+│   │   ├── email_generator.py     # RFC-2822 .eml corporate override threads
+│   │   └── mismatch_injector.py   # Ledger-to-document OCR mismatch & IBAN injection
 │   ├── connectors/                # [Pillar 1] Stateful Bidirectional ERP Connectors
 │   │   ├── base.py                # Abstract ERPConnector & Pydantic sync models
 │   │   ├── mock_erp.py            # Offline simulated ERP database & sandbox fallback
@@ -503,7 +608,7 @@ Synthetic-General-Ledger-Fuzzer/
 │   │   └── pipeline.py            # Anomaly orchestration pipeline
 │   ├── verification/              # Invariant & Audit Verification
 │   │   ├── invariants.py          # Strict double-entry balance verifier (Doc, Local, Group)
-│   │   └── audit_metrics.py       # SOX-404 automated audit detection (9 forensic methods)
+│   │   └── audit_metrics.py       # SOX-404 automated audit detection (10 forensic methods)
 │   └── exporters/                 # Output Deliverable Exporters
 │       ├── parquet_exporter.py    # PyArrow Decimal128 Parquet exporter
 │       ├── streaming_parquet.py   # Zero-OOM streaming row-group Parquet writer
@@ -511,7 +616,12 @@ Synthetic-General-Ledger-Fuzzer/
 │       ├── csv_exporter.py        # RFC 4180 CSV exporter (None-safe)
 │       ├── sap_bseg_exporter.py   # SAP BKPF / BSEG table exporter
 │       └── manifest_exporter.py   # JSON & Parquet ground-truth manifest exporter
-├── tests/                         # 150 automated unit, regression, and integration tests
+├── docker/                        # [Frontier 5] Container Definitions & Mock Services
+│   ├── Dockerfile.fuzzer          # GL-Fuzzer container definition
+│   ├── Dockerfile.mock_sap        # Mock SAP S/4HANA gateway service container
+│   └── mock_sap_service.py        # Mock OData V4 HTTP server
+├── docker-compose.yml             # Redpanda Kafka, Mock SAP, LocalStack Kinesis compose
+├── tests/                         # 172 automated unit, regression, and integration tests
 ├── pyproject.toml                 # Project configuration, dependencies, and v0.3.0 metadata
 ├── run.bat                        # Windows 1-click launcher
 ├── run.py                         # Cross-platform interactive launcher

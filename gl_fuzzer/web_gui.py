@@ -272,6 +272,56 @@ class GLAppState:
             res = eng.generate_tax_return(self.batch.entries, jurisdiction=jur_enum, period_str=period)
             return res.model_dump(mode="json")
 
+    def run_apt_campaign(self, campaign_type: str = "INVENTORY_MAP_CREEP_AND_OBSOLESCENCE", seed: int = 42) -> Dict[str, Any]:
+        """Generates a multi-quarter APT adversarial narrative campaign."""
+        with self._lock:
+            from gl_fuzzer.campaigns import APTNarrativeOrchestrator, APTCampaignType
+            coa = ChartOfAccounts.create_default()
+            orch = APTNarrativeOrchestrator(coa=coa, seed=seed)
+            try:
+                ctype = APTCampaignType(campaign_type)
+            except ValueError:
+                ctype = APTCampaignType.INVENTORY_MAP_CREEP_AND_OBSOLESCENCE
+            record, entries = orch.orchestrate_campaign(campaign_type=ctype)
+            res = record.model_dump(mode="json")
+            res["vouchers_count"] = len(entries)
+            return res
+
+    def run_mdm_audit(self, seed: int = 42, inject_anomalies: bool = True) -> Dict[str, Any]:
+        """Executes deep Master Data screening across vendors, customers, and employees."""
+        with self._lock:
+            from gl_fuzzer.mdm import MasterDataManager
+            mdm = MasterDataManager.create_default(seed=seed)
+            if inject_anomalies:
+                mdm.inject_sybil_vendor("VEND_001")
+                mdm.tamper_vendor_bank("VEND_002", tamper_date="2026-05-01")
+                mdm.inject_employee_collusion("EMP_001")
+            screening = mdm.screen_mdm_anomalies()
+            findings_count = (
+                screening.get("sybil_duplicates_found", 0)
+                + screening.get("collusions_found", 0)
+                + screening.get("tampered_vendors_found", 0)
+            )
+            return {
+                "total_findings": findings_count,
+                "screening": screening,
+                "vendor_count": len(mdm.vendors),
+                "customer_count": len(mdm.customers),
+                "employee_count": len(mdm.employees),
+            }
+
+    def generate_remediation(self, rule_name: str = "RULE_WHT_EVASION") -> Dict[str, Any]:
+        """Generates automated remediation patches (SAP GGB0, ABAP BAdI, SQL, SOX controls)."""
+        with self._lock:
+            from gl_fuzzer.remediation import RemediationAdvisor
+            patch = RemediationAdvisor.advise_for_finding({
+                "finding_type": rule_name,
+                "description": f"Audit vulnerability detected for {rule_name}",
+            })
+            return patch.model_dump(mode="json")
+
+
+
 
 # Global app state instance
 state = GLAppState()
@@ -346,8 +396,23 @@ class GLWebRequestHandler(http.server.BaseHTTPRequestHandler):
                 period = str(payload.get("period", "2026-Q1"))
                 tax_results = state.run_tax_report(jurisdiction=jurisdiction, period=period)
                 self._send_json(tax_results)
+            elif path == "/api/campaign":
+                c_type = str(payload.get("campaign_type", "INVENTORY_MAP_CREEP_AND_OBSOLESCENCE"))
+                c_seed = int(payload.get("seed", 42)) if payload.get("seed") is not None else 42
+                campaign_res = state.run_apt_campaign(campaign_type=c_type, seed=c_seed)
+                self._send_json(campaign_res)
+            elif path == "/api/mdm-audit":
+                m_seed = int(payload.get("seed", 42)) if payload.get("seed") is not None else 42
+                inject_anom = bool(payload.get("inject_anomalies", True))
+                mdm_res = state.run_mdm_audit(seed=m_seed, inject_anomalies=inject_anom)
+                self._send_json(mdm_res)
+            elif path == "/api/remediation":
+                rule_name = str(payload.get("rule_name", "RULE_WHT_EVASION"))
+                remediation_res = state.generate_remediation(rule_name=rule_name)
+                self._send_json(remediation_res)
             else:
                 self.send_error(404, "Unknown API endpoint")
+
         except Exception as e:
             self._send_json({"error": str(e), "status": "ERROR"}, status=500)
 
