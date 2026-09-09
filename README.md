@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License" />
   <img src="https://img.shields.io/badge/Tests-150%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="150 Tests Passed" />
-  <img src="https://img.shields.io/badge/Version-2.0.0%20Enterprise-blueviolet?style=for-the-badge" alt="v2.0.0 Enterprise" />
+  <img src="https://img.shields.io/badge/Version-0.3.0%20Enterprise-blueviolet?style=for-the-badge" alt="v0.3.0 Enterprise" />
   <img src="https://img.shields.io/badge/Double--Entry-Zero--Sum%20Verified-emerald?style=for-the-badge" alt="Double-Entry Invariant" />
   <img src="https://img.shields.io/badge/SOX-404-Compliant-indigo?style=for-the-badge" alt="SOX-404 Compliant" />
   <img src="https://img.shields.io/badge/Author-Atiqul--Akash-orange?style=for-the-badge&logo=github&logoColor=white" alt="Atiqul-Akash" />
@@ -24,8 +24,8 @@
 ## Table of Contents
 
 - [Executive Summary](#executive-summary)
-- [Enterprise Architecture (v2.0)](#enterprise-architecture-v20)
-- [Five Enterprise Architectural Pillars (v2.0)](#five-enterprise-architectural-pillars-v20)
+- [Enterprise Architecture (v0.3)](#enterprise-architecture-v20)
+- [Five Enterprise Architectural Pillars (v0.3)](#five-enterprise-architectural-pillars-v20)
   - [1. Stateful, Bidirectional ERP Synchronization](#1-stateful-bidirectional-erp-synchronization)
   - [2. Multi-Jurisdictional Tax Localization Engine](#2-multi-jurisdictional-tax-localization-engine)
   - [3. Dynamic Security Fuzzing Feedback Loop](#3-dynamic-security-fuzzing-feedback-loop)
@@ -42,7 +42,7 @@
 - [Double-Entry Mathematical Invariant Gate](#double-entry-mathematical-invariant-gate)
 - [Dual Graphical User Interfaces](#dual-graphical-user-interfaces)
   - [1. Modern Web GUI (Browser-Based)](#1-modern-web-gui)
-  - [2. Native Windows Desktop GUI (Offline Tkinter v2.0)](#2-native-windows-desktop-gui)
+  - [2. Native Windows Desktop GUI (Offline Tkinter v0.3)](#2-native-windows-desktop-gui)
 - [Quick Start & One-Click Launchers](#quick-start--one-click-launchers)
 - [CLI Reference](#cli-reference)
 - [Dual-Artifact Export Formats](#dual-artifact-export-formats)
@@ -57,7 +57,7 @@
 
 Building enterprise fraud-detection models, validating accounting automation systems, and auditing ERP integrity faces a notorious **cold-start dilemma**: real-world general ledger transaction feeds containing verified financial crimes or edge cases are confidential, legally restricted, and exceptionally rare.
 
-The **Synthetic General Ledger Fuzzer (v2.0 Enterprise)** bridges this gap by providing an end-to-end framework capable of:
+The **Synthetic General Ledger Fuzzer (v0.3 Enterprise)** bridges this gap by providing an end-to-end framework capable of:
 1. **Mathematical Invariant Rigor**: Every synthesized transaction voucher strictly enforces $\sum \text{Debits} \equiv \sum \text{Credits}$ across document, functional/local, and group consolidation currencies at exact cent precision (`Decimal("0.01")`).
 2. **Stateful ERP Interoperability**: Bi-directionally reads master data and balances from live or simulated SAP S/4HANA (OData V4, NetWeaver RFC) and Oracle Fusion Cloud REST environments.
 3. **Multi-Jurisdictional Tax Compliance**: Evaluates nexus, VAT reverse charges, and statutory withholding taxes across 50 US states, 27 EU member nations, the UK HMRC, and India TDS.
@@ -67,7 +67,7 @@ The **Synthetic General Ledger Fuzzer (v2.0 Enterprise)** bridges this gap by pr
 
 ---
 
-## Enterprise Architecture (v2.0)
+## Enterprise Architecture (v0.3)
 
 ```
                             [ Live ERP System / Mock Sandbox ]
@@ -121,7 +121,7 @@ The **Synthetic General Ledger Fuzzer (v2.0 Enterprise)** bridges this gap by pr
 
 ---
 
-## Five Enterprise Architectural Pillars (v2.0)
+## Five Enterprise Architectural Pillars (v0.3)
 
 ### 1. Stateful, Bidirectional ERP Synchronization
 *Package: `gl_fuzzer/connectors/`*
@@ -293,7 +293,7 @@ The project includes two complete graphical user interfaces tailored for develop
   - **SOX-404 Screening Center**: Visual Benford curve comparison chart, DOA cluster breakdowns, off-hours distribution, and intercompany loops.
   - **One-Click Downloads**: Direct browser downloads for Parquet, CSV, SAP BSEG/BKPF, **SAP S/4HANA ACDOCA (Parquet & CSV)**, and JSON manifests.
 
-### 2. Native Windows Desktop GUI (Offline Tkinter v2.0)
+### 2. Native Windows Desktop GUI (Offline Tkinter v0.3)
 - **Stack**: Native Python `tkinter` and `ttk` with styled widgets.
 - **100% Offline**: Operates completely disconnected from the internet.
 - **Thread-Safe**: Background worker execution with synchronized state locking.
@@ -449,10 +449,10 @@ tests/test_tax.py .............                                          [100%]
 ```
 Synthetic-General-Ledger-Fuzzer/
 ├── gl_fuzzer/
-│   ├── __init__.py                # Package root (v2.0.0 Enterprise)
+│   ├── __init__.py                # Package root (v0.3.0 Enterprise)
 │   ├── cli.py                     # Typer / Rich command-line interface
 │   ├── web_gui.py                 # Modern browser dashboard with ACDOCA cards & endpoints
-│   ├── desktop_gui.py             # Native offline Tkinter v2.0 GUI (5 tabs, Thread-safe)
+│   ├── desktop_gui.py             # Native offline Tkinter v0.3 GUI (5 tabs, Thread-safe)
 │   ├── connectors/                # [Pillar 1] Stateful Bidirectional ERP Connectors
 │   │   ├── base.py                # Abstract ERPConnector & Pydantic sync models
 │   │   ├── mock_erp.py            # Offline simulated ERP database & sandbox fallback
@@ -512,7 +512,7 @@ Synthetic-General-Ledger-Fuzzer/
 │       ├── sap_bseg_exporter.py   # SAP BKPF / BSEG table exporter
 │       └── manifest_exporter.py   # JSON & Parquet ground-truth manifest exporter
 ├── tests/                         # 150 automated unit, regression, and integration tests
-├── pyproject.toml                 # Project configuration, dependencies, and v2.0.0 metadata
+├── pyproject.toml                 # Project configuration, dependencies, and v0.3.0 metadata
 ├── run.bat                        # Windows 1-click launcher
 ├── run.py                         # Cross-platform interactive launcher
 ├── LICENSE                        # MIT License
