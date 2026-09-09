@@ -16,7 +16,7 @@ echo   [1] Modern Web GUI (Recommended)
 echo       Interactive browser dashboard with live charts, presets, and 1-click downloads
 echo.
 echo   [2] Native Windows Desktop GUI
-echo       Offline desktop window (Tkinter) with 4 tabbed workspaces
+echo       Offline desktop window (Tkinter) with 5 tabbed workspaces
 echo.
 echo   [3] Generate Synthetic Dataset (CLI)
 echo       Synthesizes 1,000 entries (Parquet, CSV, SAP BSEG) with 5%% anomalies
@@ -25,7 +25,7 @@ echo   [4] Run SOX-404 Forensic Audit on Generated Dataset
 echo       Runs Benford, DOA split-invoices, and circular round-trip tests
 echo.
 echo   [5] Run Complete Automated Test Suite (pytest)
-echo       Runs all 83 unit and integration tests
+echo       Runs all 150 unit and integration tests
 echo.
 echo   [6] Exit
 echo.

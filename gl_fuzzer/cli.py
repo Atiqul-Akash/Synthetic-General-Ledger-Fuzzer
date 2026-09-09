@@ -29,6 +29,29 @@ from gl_fuzzer.exporters.manifest_exporter import ManifestExporter
 from gl_fuzzer.exporters.acdoca_exporter import SAPACDOCAExporter
 from gl_fuzzer.exporters.streaming_parquet import StreamingParquetExporter
 from gl_fuzzer.generators.streaming_engine import ChunkedSynthesisEngine
+from gl_fuzzer.tax import TaxJurisdiction, TaxLocalizationEngine
+from gl_fuzzer.connectors import (
+    ERPConnectionConfig,
+    MockERPConnector,
+    ODataV4Connector,
+    OracleRESTConnector,
+    SAPRFCConnector,
+)
+from gl_fuzzer.subledgers import (
+    SalesOrderFulfillmentEngine,
+    ThreeWayMatchingEngine,
+    WarehouseInventory,
+)
+from gl_fuzzer.streaming import (
+    EventHubGLPublisher,
+    KafkaGLPublisher,
+    KinesisGLPublisher,
+)
+from gl_fuzzer.fuzzing import (
+    FuzzingCampaign,
+    MockEnterpriseERPApplication,
+    RelationalLedgerTarget,
+)
 
 app = typer.Typer(help="Synthetic General Ledger Fuzzer & Calibrated Anomaly Engine | Made with <3 by Atiqul-Akash (GitHub: Atiqul-Akash)")
 console = Console()
@@ -45,6 +68,13 @@ def generate(
     multi_currency: bool = typer.Option(False, "--multi-currency", help="Enable ASC 830 / IAS 21 multi-currency triangulation"),
     seasonality: bool = typer.Option(False, "--seasonality", help="Enable macro-economic quarter-end hockey stick and seasonality"),
     stream_chunks: Optional[int] = typer.Option(None, "--stream-chunks", help="Stream generation in chunks to bound RAM usage"),
+    tax_jurisdiction: Optional[str] = typer.Option(None, "--tax-jurisdiction", help="Tax jurisdiction: US_CA, US_TX, US_NY, EU_DE, EU_FR, UK, GLOBAL"),
+    enable_wht: bool = typer.Option(False, "--enable-wht", help="Enable Withholding Tax (WHT) statutory deduction on disbursements"),
+    enable_subledgers: bool = typer.Option(False, "--enable-subledgers", help="Enable stateful warehouse inventory and 3-way matching engine"),
+    erp_sync: Optional[str] = typer.Option(None, "--erp-sync", help="Sync with ERP before generation: mock, odata, rfc, oracle"),
+    stream_target: Optional[str] = typer.Option(None, "--stream-target", help="Real-time streaming target: kafka, kinesis, eventhub"),
+    stream_topic: str = typer.Option("gl.transactions.v1", "--stream-topic", help="Streaming topic name"),
+    stream_rate: Optional[int] = typer.Option(None, "--stream-rate", help="Max streaming rate in events per second"),
 ):
     """Synthesizes balanced GL batches, injects calibrated micro-anomalies, and exports dual artifacts."""
     console.print(Panel.fit(
@@ -56,7 +86,55 @@ def generate(
     start_time = time.perf_counter()
     coa = ChartOfAccounts.create_default()
 
-    if multi_currency or seasonality or stream_chunks:
+    # Step 0: ERP Synchronization (if requested)
+    erp_conn = None
+    if erp_sync:
+        console.print(f"[blue][Sync] Connecting to {erp_sync.upper()} ERP gateway...[/blue]")
+        if erp_sync.lower() == "odata":
+            erp_conn = ODataV4Connector(coa=coa)
+        elif erp_sync.lower() == "rfc":
+            erp_conn = SAPRFCConnector(coa=coa)
+        elif erp_sync.lower() == "oracle":
+            erp_conn = OracleRESTConnector(coa=coa)
+        else:
+            erp_conn = MockERPConnector(coa=coa)
+        erp_conn.connect()
+        coa = erp_conn.fetch_chart_of_accounts("1000")
+        console.print(f"[blue][Sync] Active CoA synchronized ({len(coa.accounts)} accounts).[/blue]")
+
+    # Setup tax engine
+    tax_eng = None
+    if tax_jurisdiction:
+        try:
+            jur_enum = TaxJurisdiction(tax_jurisdiction.upper())
+        except ValueError:
+            jur_enum = TaxJurisdiction.GLOBAL
+        console.print(f"[cyan][Tax] Initializing Tax Localization Engine ({jur_enum.value})...[/cyan]")
+        tax_eng = TaxLocalizationEngine(default_jurisdiction=jur_enum)
+
+    # Setup subledgers
+    inv = None
+    twm = None
+    sales_ful = None
+    if enable_subledgers:
+        console.print("[cyan][Subledgers] Initializing Warehouse Inventory & 3-Way Matching Engine...[/cyan]")
+        inv = WarehouseInventory.create_default()
+        twm = ThreeWayMatchingEngine(inventory=inv, coa=coa)
+        sales_ful = SalesOrderFulfillmentEngine(inventory=inv, coa=coa)
+
+    # Setup streaming publisher
+    stream_pub = None
+    if stream_target:
+        console.print(f"[magenta][Streaming] Initializing {stream_target.upper()} stream publisher...[/magenta]")
+        if stream_target.lower() == "kinesis":
+            stream_pub = KinesisGLPublisher(stream_name=stream_topic)
+        elif stream_target.lower() == "eventhub":
+            stream_pub = EventHubGLPublisher(eventhub_name=stream_topic)
+        else:
+            stream_pub = KafkaGLPublisher()
+        stream_pub.connect()
+
+    if multi_currency or seasonality or stream_chunks or stream_pub:
         console.print(f"[green][Step 1] Synthesizing {count:,} baseline journal entries via Chunked Engine (Multi-Currency={multi_currency}, Seasonality={seasonality})...[/green]")
         engine = ChunkedSynthesisEngine(
             coa=coa,
@@ -64,17 +142,38 @@ def generate(
             multi_currency=multi_currency,
             macro_seasonality=seasonality,
         )
+        # Pass injected dependencies to underlying base engine
+        engine.base_engine.tax_engine = tax_eng
+        engine.base_engine.inventory = inv
+        engine.base_engine.three_way_match = twm
+        engine.base_engine.sales_fulfillment = sales_ful
+        engine.base_engine.erp_connector = erp_conn
+
         chunk_sz = stream_chunks or min(count, 10000)
         batch_entries = []
         anomaly_records = []
-        for c_entries, c_anoms in engine.stream_chunks(total_entries=count, chunk_size=chunk_sz, anomaly_rate=anomaly_rate):
+        for c_entries, c_anoms in engine.stream_chunks(
+            total_entries=count,
+            chunk_size=chunk_sz,
+            anomaly_rate=anomaly_rate,
+            stream_publisher=stream_pub,
+            stream_topic=stream_topic,
+        ):
             batch_entries.extend(c_entries)
             anomaly_records.extend(c_anoms)
 
         batch_id = f"BATCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         batch = Batch(batch_id=batch_id, created_at=datetime.now().isoformat(), entries=batch_entries)
     else:
-        engine = BaseSynthesisEngine(coa=coa, seed=seed)
+        engine = BaseSynthesisEngine(
+            coa=coa,
+            seed=seed,
+            tax_engine=tax_eng,
+            inventory=inv,
+            three_way_match=twm,
+            sales_fulfillment=sales_ful,
+            erp_connector=erp_conn,
+        )
         console.print(f"[green][Step 1] Synthesizing {count:,} clean baseline journal entries across P2P, O2C, and R2R...[/green]")
         batch_id = f"BATCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         batch = engine.generate_batch(batch_id=batch_id, target_entry_count=count)
@@ -82,6 +181,12 @@ def generate(
         console.print(f"[yellow][Step 2] Injecting calibrated micro-anomalies at target rate {anomaly_rate:.1%}...[/yellow]")
         pipeline = AnomalyPipeline(coa=coa, seed=seed)
         anomaly_records = pipeline.inject_anomalies(batch=batch, overall_anomaly_rate=anomaly_rate)
+
+    # Apply Withholding Tax to vendor disbursements if enabled
+    if enable_wht and tax_eng:
+        for entry in batch.entries:
+            if entry.document_type == DocumentType.KZ:
+                tax_eng.wht_engine.apply_wht_to_payment_entry(entry)
 
     # 3. Mathematical Invariant Verification Gate
     console.print("[blue][Step 3] Invariant Gate: Verifying Debits == Credits across all batches and entries...[/blue]")
@@ -551,6 +656,138 @@ def _load_entries_from_file(path: Path) -> list[JournalEntry]:
         result.append(entry)
 
     return result
+
+
+@app.command(name="fuzz-loop")
+def fuzz_loop(
+    iterations: int = typer.Option(5, "--iterations", "-i", help="Number of adaptive fuzzing loop cycles"),
+    count: int = typer.Option(100, "--count", "-n", help="Journal entries synthesized per iteration"),
+    target: str = typer.Option("mock", "--target", "-t", help="Execution target: 'mock' or 'sqlite'"),
+    mutation_rate: float = typer.Option(0.35, "--mutation-rate", "-m", help="Mutation injection rate per iteration"),
+    seed: Optional[int] = typer.Option(42, "--seed", "-s", help="Reproducibility seed"),
+    out_dir: Path = typer.Option(Path("./output"), "--out-dir", "-o", help="Output directory for campaign report"),
+):
+    """Executes closed-loop dynamic security fuzzing campaign against an ERP target."""
+    console.print(Panel.fit(
+        "[bold red]Dynamic Security Fuzzing Feedback Loop[/bold red]\n"
+        f"[dim]Adaptive Genetic Mutation & Target Resilience Probe (Target={target.upper()})[/dim]\n"
+        "[italic magenta]Made with <3 by Atiqul-Akash | GitHub: Atiqul-Akash[/italic magenta]"
+    ))
+
+    coa = ChartOfAccounts.create_default()
+    if target.lower() == "sqlite":
+        exec_target = RelationalLedgerTarget(coa=coa)
+    else:
+        exec_target = MockEnterpriseERPApplication(coa=coa)
+
+    campaign = FuzzingCampaign(target=exec_target, coa=coa, seed=seed)
+    console.print(f"[yellow]Launching {iterations} fuzzing cycles ({count} entries/iter, mutation_rate={mutation_rate:.1%})...[/yellow]")
+
+    report = campaign.run(iterations=iterations, entries_per_iteration=count, mutation_rate=mutation_rate)
+
+    # Render summary table
+    table = Table(title="[bold green]Fuzzing Campaign Execution Summary[/bold green]")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="bold white")
+
+    table.add_row("Campaign ID", report.campaign_id)
+    table.add_row("Target Under Test", report.target_type)
+    table.add_row("Total Iterations", str(report.total_iterations))
+    table.add_row("Total Payloads Executed", f"{report.total_entries_posted:,}")
+    table.add_row("Control Bypasses Caught (CRITICAL)", f"[bold red]{report.bypass_count}[/bold red]")
+    table.add_row("Target Crashes Triggered (CRITICAL)", f"[bold red]{report.crash_count}[/bold red]")
+    table.add_row("Control Bypass Rate", f"{report.bypass_rate:.2%}")
+    table.add_row("Rule Coverage Percentage", f"{report.rule_coverage_percent:.1f}%")
+    console.print(table)
+
+    if report.top_bypass_vectors:
+        console.print("[bold yellow]Top Control Bypass Vectors:[/bold yellow]")
+        for vec in report.top_bypass_vectors:
+            console.print(f"  • [red]{vec}[/red]")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report_file = out_dir / "fuzzing_campaign_report.json"
+    with open(report_file, "w", encoding="utf-8") as f:
+        f.write(report.model_dump_json(indent=2))
+    console.print(f"[green]Full Fuzzing Campaign Report written to: {report_file}[/green]")
+
+
+@app.command(name="tax-report")
+def tax_report(
+    dataset: Path = typer.Option(..., "--dataset", "-d", help="Path to GL Parquet or CSV dataset"),
+    jurisdiction: str = typer.Option("GLOBAL", "--jurisdiction", "-j", help="Tax jurisdiction: US_CA, US_TX, EU_DE, EU_FR, UK, GLOBAL"),
+    period: str = typer.Option("2026-Q1", "--period", "-p", help="Reporting tax period (e.g. 2026-Q1, 2026-03)"),
+    out_dir: Optional[Path] = typer.Option(None, "--out-dir", "-o", help="Optional output directory for JSON tax return summary"),
+):
+    """Calculates periodic tax reconciliation return and intra-community VAT summaries."""
+    console.print(Panel.fit(
+        "[bold cyan]Multi-Jurisdictional Tax Reconciliation Engine[/bold cyan]\n"
+        f"[dim]Tax Return Form Generator ({jurisdiction.upper()}) | Period: {period}[/dim]"
+    ))
+
+    entries = _load_entries_from_file(dataset)
+    try:
+        jur_enum = TaxJurisdiction(jurisdiction.upper())
+    except ValueError:
+        jur_enum = TaxJurisdiction.GLOBAL
+
+    engine = TaxLocalizationEngine(default_jurisdiction=jur_enum)
+    summary = engine.generate_tax_return(entries=entries, jurisdiction=jur_enum, period_str=period)
+
+    table = Table(title=f"[bold green]Tax Reconciliation Return - {summary.jurisdiction.value} ({summary.period})[/bold green]")
+    table.add_column("Tax Line Item", style="cyan")
+    table.add_column("Amount (USD)", style="bold white", justify="right")
+
+    table.add_row("Total Taxable Sales (Base)", f"${summary.taxable_sales:,.2f}")
+    table.add_row("Total Exempt Sales", f"${summary.exempt_sales:,.2f}")
+    table.add_row("Output Tax Collected (Payable)", f"${summary.output_tax_collected:,.2f}")
+    table.add_row("Total Taxable Purchases", f"${summary.taxable_purchases:,.2f}")
+    table.add_row("Input Tax Deductible (Recoverable)", f"${summary.input_tax_deductible:,.2f}")
+    net_style = "bold red" if summary.net_tax_payable > Decimal("0.00") else "bold green"
+    label = "Net Tax Payable to Authority" if summary.net_tax_payable >= Decimal("0.00") else "Net Tax Refund Claim"
+    table.add_row(label, f"[{net_style}]${summary.net_tax_payable:,.2f}[/{net_style}]")
+    console.print(table)
+
+    if out_dir:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = out_dir / f"tax_return_{jurisdiction.lower()}_{period}.json"
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(summary.model_dump_json(indent=2))
+        console.print(f"[green]Tax Return written to: {out_file}[/green]")
+
+
+@app.command(name="stream-feed")
+def stream_feed(
+    dataset: Path = typer.Option(..., "--dataset", "-d", help="Path to existing GL dataset (Parquet or CSV)"),
+    target: str = typer.Option("kafka", "--target", "-t", help="Streaming target: kafka, kinesis, eventhub"),
+    topic: str = typer.Option("gl.transactions.v1", "--topic", help="Destination topic or event stream"),
+    rate: int = typer.Option(50, "--rate", "-r", help="Target streaming speed in events per second"),
+):
+    """Streams transactions from an existing dataset live into Kafka, Kinesis, or Event Hubs."""
+    console.print(Panel.fit(
+        f"[bold magenta]Real-Time Event Streamer -> {target.upper()}[/bold magenta]\n"
+        f"[dim]Streaming Topic: {topic} | Throttle: {rate} events/sec[/dim]"
+    ))
+
+    entries = _load_entries_from_file(dataset)
+    console.print(f"[green]Loaded {len(entries):,} journal entries. Connecting publisher...[/green]")
+
+    if target.lower() == "kinesis":
+        pub = KinesisGLPublisher(stream_name=topic)
+    elif target.lower() == "eventhub":
+        pub = EventHubGLPublisher(eventhub_name=topic)
+    else:
+        pub = KafkaGLPublisher()
+
+    pub.connect()
+    start = time.perf_counter()
+
+    batch = Batch(batch_id="STREAM_FEED", created_at=datetime.now().isoformat(), entries=entries)
+    res = pub.publish_batch(batch, topic=topic, rate_limit_eps=rate)
+
+    elapsed = time.perf_counter() - start
+    console.print(f"[bold green]Stream published successfully! {res.total_published:,} events streamed in {elapsed:.2f}s ({res.publish_rate_eps} eps).[/bold green]")
+    pub.close()
 
 
 if __name__ == "__main__":

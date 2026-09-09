@@ -64,6 +64,18 @@ class TestGLAppState(unittest.TestCase):
         res = empty_state.run_audit()
         self.assertIn("error", res)
 
+    def test_state_fuzzing_campaign(self):
+        res = self.state.run_fuzzing_campaign(iterations=2, count=20, target="mock")
+        self.assertIn("total_entries_posted", res)
+        self.assertIn("iteration_reports", res)
+        self.assertEqual(res["total_entries_posted"], 40)
+
+    def test_state_tax_report(self):
+        self.state.generate(count=50, anomaly_rate=0.0, seed=42)
+        res = self.state.run_tax_report(jurisdiction="EU_DE", period="2026-Q1")
+        self.assertEqual(res["jurisdiction"], "EU_DE")
+        self.assertIn("net_tax_payable", res)
+
 
 class TestDesktopGUI(unittest.TestCase):
     """Test suite for native Desktop GUI."""
@@ -133,6 +145,19 @@ class TestDesktopGUI(unittest.TestCase):
         self.app._on_entry_selected(None)
         line_items = self.app.tree_lines.get_children()
         self.assertGreaterEqual(len(line_items), 2)  # At least 1 debit and 1 credit
+
+    def test_desktop_gui_enterprise_tab(self):
+        # Verify enterprise tab variables exist
+        self.assertEqual(self.app.tax_jurisdiction_var.get(), "GLOBAL")
+        self.assertFalse(self.app.enable_wht_var.get())
+        self.assertFalse(self.app.enable_subledgers_var.get())
+        self.assertEqual(self.app.fuzz_target_var.get(), "mock")
+
+        # Test connector probe execution
+        self.app._probe_connectors()
+        probe_text = self.app.txt_conn_results.get("1.0", tk.END)
+        self.assertIn("SAP OData API", probe_text)
+        self.assertIn("Embedded Kafka", probe_text)
 
 
 if __name__ == "__main__":

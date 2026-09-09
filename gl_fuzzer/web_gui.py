@@ -53,11 +53,40 @@ class GLAppState:
         anomaly_rate: float = 0.05,
         seed: Optional[int] = 42,
         enabled_anomalies: Optional[Dict[str, bool]] = None,
+        tax_jurisdiction: Optional[str] = None,
+        enable_wht: bool = False,
+        enable_subledgers: bool = False,
     ) -> Dict[str, Any]:
         """Synthesizes a new batch, fuzzes it, verifies invariants, and writes exports."""
         with self._lock:
             coa = ChartOfAccounts.create_default()
-            engine = BaseSynthesisEngine(coa=coa, seed=seed)
+
+            tax_eng = None
+            if tax_jurisdiction:
+                from gl_fuzzer.tax import TaxLocalizationEngine, TaxJurisdiction
+                try:
+                    jur_enum = TaxJurisdiction(tax_jurisdiction.upper())
+                except ValueError:
+                    jur_enum = TaxJurisdiction.GLOBAL
+                tax_eng = TaxLocalizationEngine(default_jurisdiction=jur_enum)
+
+            inv = None
+            twm = None
+            sfe = None
+            if enable_subledgers:
+                from gl_fuzzer.subledgers import WarehouseInventory, ThreeWayMatchingEngine, SalesOrderFulfillmentEngine
+                inv = WarehouseInventory.create_default()
+                twm = ThreeWayMatchingEngine(inventory=inv, coa=coa)
+                sfe = SalesOrderFulfillmentEngine(inventory=inv, coa=coa)
+
+            engine = BaseSynthesisEngine(
+                coa=coa,
+                seed=seed,
+                tax_engine=tax_eng,
+                inventory=inv,
+                three_way_match=twm,
+                sales_fulfillment=sfe,
+            )
 
             batch_id = f"WEB_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             self.batch = engine.generate_batch(batch_id=batch_id, target_entry_count=count)
@@ -219,6 +248,30 @@ class GLAppState:
             "intercompany": ic,
         }
 
+    def run_fuzzing_campaign(self, iterations: int = 3, count: int = 50, target: str = "mock") -> Dict[str, Any]:
+        """Runs dynamic security fuzzing feedback loop against target."""
+        with self._lock:
+            from gl_fuzzer.fuzzing import FuzzingCampaign, MockEnterpriseERPApplication, RelationalLedgerTarget
+            coa = ChartOfAccounts.create_default()
+            t = RelationalLedgerTarget(coa=coa) if target == "sqlite" else MockEnterpriseERPApplication(coa=coa)
+            camp = FuzzingCampaign(target=t, coa=coa)
+            report = camp.run(iterations=iterations, entries_per_iteration=count)
+            return report.model_dump(mode="json")
+
+    def run_tax_report(self, jurisdiction: str = "EU_DE", period: str = "2026-Q1") -> Dict[str, Any]:
+        """Runs tax return generation on current dataset."""
+        with self._lock:
+            from gl_fuzzer.tax import TaxLocalizationEngine, TaxJurisdiction
+            if not self.batch or not self.batch.entries:
+                return {"error": "No dataset generated yet"}
+            try:
+                jur_enum = TaxJurisdiction(jurisdiction.upper())
+            except ValueError:
+                jur_enum = TaxJurisdiction.GLOBAL
+            eng = TaxLocalizationEngine(default_jurisdiction=jur_enum)
+            res = eng.generate_tax_return(self.batch.entries, jurisdiction=jur_enum, period_str=period)
+            return res.model_dump(mode="json")
+
 
 # Global app state instance
 state = GLAppState()
@@ -274,11 +327,25 @@ class GLWebRequestHandler(http.server.BaseHTTPRequestHandler):
                     anomaly_rate=anomaly_rate,
                     seed=seed,
                     enabled_anomalies=enabled_anomalies,
+                    tax_jurisdiction=payload.get("tax_jurisdiction"),
+                    enable_wht=bool(payload.get("enable_wht", False)),
+                    enable_subledgers=bool(payload.get("enable_subledgers", False)),
                 )
                 self._send_json(summary)
             elif path == "/api/audit":
                 audit_results = state.run_audit()
                 self._send_json(audit_results)
+            elif path == "/api/fuzz-loop":
+                iterations = int(payload.get("iterations", 3))
+                count = int(payload.get("count", 50))
+                target = str(payload.get("target", "mock"))
+                fuzz_results = state.run_fuzzing_campaign(iterations=iterations, count=count, target=target)
+                self._send_json(fuzz_results)
+            elif path == "/api/tax-report":
+                jurisdiction = str(payload.get("jurisdiction", "EU_DE"))
+                period = str(payload.get("period", "2026-Q1"))
+                tax_results = state.run_tax_report(jurisdiction=jurisdiction, period=period)
+                self._send_json(tax_results)
             else:
                 self.send_error(404, "Unknown API endpoint")
         except Exception as e:

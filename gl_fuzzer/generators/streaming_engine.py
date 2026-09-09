@@ -97,18 +97,18 @@ class ChunkedSynthesisEngine:
                 # Invariant Safeguard: Ensure local and group sums balance to exact cent
                 delta_local = entry.total_debits_local - entry.total_credits_local
                 if delta_local != Decimal("0.00") and len(entry.lines) >= 2:
-                    # Adjust first credit line to absorb rounding fractional cent
-                    for line in entry.lines:
-                        if line.debit_credit == DebitCredit.CREDIT:
-                            line.amount_local = (line.amount_local + delta_local).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                            break
+                    # Adjust the largest credit line to safely absorb rounding fractional cent without going <= 0
+                    credit_lines = [l for l in entry.lines if l.debit_credit == DebitCredit.CREDIT and l.amount_local is not None]
+                    if credit_lines:
+                        target_line = max(credit_lines, key=lambda l: l.amount_local or Decimal("0.00"))
+                        target_line.amount_local = (target_line.amount_local + delta_local).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
                 delta_group = entry.total_debits_group - entry.total_credits_group
                 if delta_group != Decimal("0.00") and len(entry.lines) >= 2:
-                    for line in entry.lines:
-                        if line.debit_credit == DebitCredit.CREDIT:
-                            line.amount_group = (line.amount_group + delta_group).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                            break
+                    credit_lines_g = [l for l in entry.lines if l.debit_credit == DebitCredit.CREDIT and l.amount_group is not None]
+                    if credit_lines_g:
+                        target_line_g = max(credit_lines_g, key=lambda l: l.amount_group or Decimal("0.00"))
+                        target_line_g.amount_group = (target_line_g.amount_group + delta_group).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         return entries
 
@@ -117,6 +117,8 @@ class ChunkedSynthesisEngine:
         total_entries: int,
         chunk_size: int = 10_000,
         anomaly_rate: float = 0.05,
+        stream_publisher: Optional[Any] = None,
+        stream_topic: str = "gl.transactions.v1",
     ) -> Generator[Tuple[List[JournalEntry], List[AnomalyRecord]], None, None]:
         """Yields streaming chunks of balanced and fuzzed journal entries.
         
@@ -139,6 +141,14 @@ class ChunkedSynthesisEngine:
 
             # 3. Enrich all entries with multi-currency and seasonality
             batch.entries = self._apply_multi_currency_and_seasonality(batch.entries)
+
+            # 4. Stream publish in real time if publisher provided
+            if stream_publisher is not None:
+                for entry in batch.entries:
+                    stream_publisher.publish_entry(entry, topic=stream_topic)
+                for anom in anom_records:
+                    stream_publisher.publish_anomaly(anom)
+                stream_publisher.flush()
 
             yield batch.entries, anom_records
 

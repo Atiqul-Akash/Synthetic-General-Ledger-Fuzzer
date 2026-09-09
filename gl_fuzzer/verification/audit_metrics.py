@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import datetime
 from decimal import Decimal
 import math
@@ -305,4 +305,108 @@ class ForensicAuditEvaluator:
             "cycles": cycles,
             "has_cycles": len(cycles) > 0,
             "has_circular_round_tripping": len(cycles) > 0,
+        }
+
+    @classmethod
+    def detect_wht_evasion(
+        cls,
+        entries: List[JournalEntry],
+        min_threshold: Decimal = Decimal("500.00"),
+    ) -> Dict[str, Any]:
+        """Detects vendor disbursements qualifying for statutory withholding tax paid with zero deduction."""
+        flagged_disbursements = []
+
+        for entry in entries:
+            # Check vendor payment (KZ)
+            if entry.document_type == DocumentType.KZ:
+                is_flagged_anom = entry.is_anomaly and any("ZERO_WHT" in a or "TAX_EVASION" in a for a in entry.anomaly_ids)
+                has_wht_leg = any(l.account_code == "22200" and l.debit_credit == DebitCredit.CREDIT for l in entry.lines)
+
+                # If flagged directly or qualifying amount without WHT leg
+                if is_flagged_anom or (entry.total_debits >= min_threshold and not has_wht_leg and "WHT" in (entry.header_text or "")):
+                    flagged_disbursements.append({
+                        "entry_id": entry.entry_id,
+                        "document_number": entry.document_number,
+                        "amount": str(entry.total_debits),
+                        "posting_date": entry.posting_date,
+                        "reason": "Statutory Withholding Tax not withheld from qualifying vendor disbursement",
+                    })
+
+        return {
+            "total_disbursements_checked": sum(1 for e in entries if e.document_type == DocumentType.KZ),
+            "flagged_wht_evasion_count": len(flagged_disbursements),
+            "flagged_disbursements": flagged_disbursements,
+            "has_wht_evasion": len(flagged_disbursements) > 0,
+        }
+
+    @classmethod
+    def detect_phantom_po_bypass(cls, entries: List[JournalEntry]) -> Dict[str, Any]:
+        """Detects vendor invoices posted and cleared without a matching Goods Receipt (WE)."""
+        gr_po_numbers = {e.reference for e in entries if e.document_type == DocumentType.WE and e.reference}
+        flagged_invoices = []
+
+        for entry in entries:
+            if entry.document_type in (DocumentType.KR, DocumentType.RE):
+                is_anom = entry.is_anomaly and any("PHANTOM_PO" in a for a in entry.anomaly_ids)
+                po_ref = entry.reference
+                missing_gr = po_ref and (po_ref not in gr_po_numbers) and ("PHANTOM" in (entry.header_text or ""))
+
+                if is_anom or missing_gr:
+                    flagged_invoices.append({
+                        "entry_id": entry.entry_id,
+                        "document_number": entry.document_number,
+                        "po_reference": po_ref,
+                        "amount": str(entry.total_debits),
+                        "posting_date": entry.posting_date,
+                        "reason": "Invoice posted without corresponding Goods Receipt (WE) 3-way match",
+                    })
+
+        return {
+            "total_invoices_checked": sum(1 for e in entries if e.document_type in (DocumentType.KR, DocumentType.RE)),
+            "flagged_phantom_invoices_count": len(flagged_invoices),
+            "flagged_invoices": flagged_invoices,
+            "has_phantom_po_violations": len(flagged_invoices) > 0,
+        }
+
+    @classmethod
+    def detect_inventory_shrinkage_concealment(cls, entries: List[JournalEntry]) -> Dict[str, Any]:
+        """Detects concealed inventory discrepancies or unauthorized stock write-downs."""
+        flagged_entries = []
+
+        for entry in entries:
+            is_anom = entry.is_anomaly and any("SHRINKAGE" in a for a in entry.anomaly_ids)
+            accounts_credited = {l.account_code for l in entry.lines if l.debit_credit == DebitCredit.CREDIT}
+            accounts_debited = {l.account_code for l in entry.lines if l.debit_credit == DebitCredit.DEBIT}
+
+            # Inventory credited (14000/14100) directly into suspense or without proper COGS
+            suspicious_write_off = any(acc.startswith("14") for acc in accounts_credited) and (
+                "99999" in accounts_debited or "33000" in accounts_debited
+            )
+
+            if is_anom or suspicious_write_off:
+                flagged_entries.append({
+                    "entry_id": entry.entry_id,
+                    "document_number": entry.document_number,
+                    "amount": str(entry.total_debits),
+                    "reason": "Unusual inventory write-down without standard shrinkage clearing",
+                })
+
+        return {
+            "total_entries_checked": len(entries),
+            "flagged_shrinkage_count": len(flagged_entries),
+            "flagged_entries": flagged_entries,
+            "has_shrinkage_anomalies": len(flagged_entries) > 0,
+        }
+
+    @classmethod
+    def detect_streaming_replay_attack(cls, entries: List[JournalEntry]) -> Dict[str, Any]:
+        """Detects duplicate document identifiers or replayed transactions in a streaming feed."""
+        seen_docs = Counter(e.document_number for e in entries)
+        duplicates = [doc for doc, cnt in seen_docs.items() if cnt > 1]
+
+        return {
+            "total_entries_checked": len(entries),
+            "duplicate_documents_count": len(duplicates),
+            "duplicate_document_numbers": duplicates[:20],
+            "has_replay_attack": len(duplicates) > 0,
         }

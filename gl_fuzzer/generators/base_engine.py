@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from decimal import Decimal
+from typing import Any, List, Optional
 import uuid
 import numpy as np
 
@@ -23,11 +24,26 @@ class BaseSynthesisEngine:
         coa: Optional[ChartOfAccounts] = None,
         seed: Optional[int] = None,
         company_codes: Optional[List[str]] = None,
+        tax_engine: Optional[Any] = None,
+        inventory: Optional[Any] = None,
+        three_way_match: Optional[Any] = None,
+        sales_fulfillment: Optional[Any] = None,
+        erp_connector: Optional[Any] = None,
     ):
-        self.coa = coa or ChartOfAccounts.create_default()
+        self.company_codes = company_codes or ["1000", "2000", "3000"]
+        if erp_connector is not None:
+            self.coa = erp_connector.fetch_chart_of_accounts(self.company_codes[0])
+        else:
+            self.coa = coa or ChartOfAccounts.create_default()
+
         self.seed = seed
         self.rng = np.random.default_rng(seed)
-        self.company_codes = company_codes or ["1000", "2000", "3000"]
+
+        self.tax_engine = tax_engine
+        self.inventory = inventory
+        self.three_way_match = three_way_match
+        self.sales_fulfillment = sales_fulfillment
+        self.erp_connector = erp_connector
 
         self.calendar = BusinessCalendar(rng=self.rng)
         self.amount_gen = LogNormalAmountGenerator(rng=self.rng)
@@ -55,23 +71,62 @@ class BaseSynthesisEngine:
             if roll < 0.45:
                 # P2P: Either full 3-step flow or single invoice
                 if self.rng.random() < 0.60 and (target_entry_count - len(entries)) >= 3:
-                    p2p_entries = self.p2p_gen.generate_full_p2p_flow(batch_id=b_id, company_code=cmp)
-                    entries.extend(p2p_entries)
+                    if self.three_way_match is not None:
+                        mat_keys = list(self.inventory.materials.keys()) if self.inventory else ["MAT-1001"]
+                        mat_id = str(self.rng.choice(mat_keys))
+                        qty = Decimal(str(int(self.rng.integers(5, 50))))
+                        po = self.three_way_match.create_purchase_order(
+                            vendor_id=f"VEND_{self.rng.integers(100, 200)}",
+                            material_number=mat_id,
+                            ordered_qty=qty,
+                            company_code=cmp,
+                        )
+                        gr, we = self.three_way_match.post_goods_receipt(po, qty)
+                        ir, re, _ = self.three_way_match.post_invoice_receipt(po, gr, qty, po.po_unit_price)
+                        kz = self.p2p_gen.generate_vendor_payment(batch_id=b_id, invoice_entry=re, company_code=cmp)
+                        entries.extend([we, re, kz])
+                    else:
+                        p2p_entries = self.p2p_gen.generate_full_p2p_flow(batch_id=b_id, company_code=cmp)
+                        entries.extend(p2p_entries)
                 else:
                     entry = self.p2p_gen.generate_single_vendor_invoice(batch_id=b_id, company_code=cmp)
+                    if self.tax_engine is not None:
+                        entry = self.tax_engine.apply_tax_to_entry(entry, is_purchase=True)
                     entries.append(entry)
             elif roll < 0.90:
                 # O2C: Full 3-step flow or single customer invoice
                 if (target_entry_count - len(entries)) >= 3:
                     if self.rng.random() < 0.70:
-                        o2c_entries = self.o2c_gen.generate_full_o2c_flow(batch_id=b_id, company_code=cmp)
-                        entries.extend(o2c_entries)
+                        if self.sales_fulfillment is not None:
+                            mat_keys = list(self.inventory.materials.keys()) if self.inventory else ["MAT-1001"]
+                            mat_id = str(self.rng.choice(mat_keys))
+                            qty = Decimal(str(int(self.rng.integers(2, 20))))
+                            so = self.sales_fulfillment.create_sales_order(
+                                customer_id=f"CUST_{self.rng.integers(100, 200)}",
+                                material_number=mat_id,
+                                ordered_qty=qty,
+                                unit_price=Decimal("120.00"),
+                                company_code=cmp,
+                            )
+                            wb, wa = self.sales_fulfillment.post_goods_issue(so, qty)
+                            rv = self.sales_fulfillment.post_billing_document(so, wb)
+                            if self.tax_engine is not None:
+                                rv = self.tax_engine.apply_tax_to_entry(rv, is_purchase=False)
+                            dz = self.sales_fulfillment.post_customer_payment(rv)
+                            entries.extend([wa, rv, dz])
+                        else:
+                            o2c_entries = self.o2c_gen.generate_full_o2c_flow(batch_id=b_id, company_code=cmp)
+                            entries.extend(o2c_entries)
                     else:
                         entry = self.o2c_gen.generate_single_customer_invoice(batch_id=b_id, company_code=cmp)
+                        if self.tax_engine is not None:
+                            entry = self.tax_engine.apply_tax_to_entry(entry, is_purchase=False)
                         entries.append(entry)
                 else:
                     # fallback single customer invoice
                     entry = self.o2c_gen.generate_single_customer_invoice(batch_id=b_id, company_code=cmp)
+                    if self.tax_engine is not None:
+                        entry = self.tax_engine.apply_tax_to_entry(entry, is_purchase=False)
                     entries.append(entry)
             else:
                 # R2R: Depreciation, Accrual, or Payroll

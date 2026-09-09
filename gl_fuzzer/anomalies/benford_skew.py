@@ -69,6 +69,10 @@ class BenfordSkewMutator(BaseAnomalyMutator):
             old_amount = entry.lines[0].amount
             for line in entry.lines:
                 line.amount = new_amount
+                if line.amount_local is not None:
+                    line.amount_local = new_amount
+                if line.amount_group is not None:
+                    line.amount_group = new_amount
 
             entry.is_anomaly = True
             entry.anomaly_ids.append(anomaly_id)

@@ -108,16 +108,19 @@ class DesktopGUI:
         self.tab_explorer = ttk.Frame(self.notebook, padding=12)
         self.tab_audit = ttk.Frame(self.notebook, padding=12)
         self.tab_export = ttk.Frame(self.notebook, padding=12)
+        self.tab_enterprise = ttk.Frame(self.notebook, padding=12)
 
         self.notebook.add(self.tab_synthesis, text=" ⚙️ 1. Synthesis & Generation ")
         self.notebook.add(self.tab_explorer, text=" 📑 2. Voucher & Ledger Explorer ")
         self.notebook.add(self.tab_audit, text=" 🛡️ 3. SOX-404 Forensic Audit ")
         self.notebook.add(self.tab_export, text=" 📦 4. Export & Artifacts ")
+        self.notebook.add(self.tab_enterprise, text=" ⚡ 5. Enterprise & Dynamic Fuzzing ")
 
         self._init_synthesis_tab()
         self._init_explorer_tab()
         self._init_audit_tab()
         self._init_export_tab()
+        self._init_enterprise_tab()
 
     def _build_status_bar(self):
         status_bar = ttk.Frame(self.root, padding=(12, 4))
@@ -249,6 +252,25 @@ class DesktopGUI:
         )
         cb5.pack(anchor=tk.W, pady=2)
 
+        # Enterprise Features Configuration
+        ttk.Separator(left_col, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=6)
+        ttk.Label(left_col, text="Enterprise Engine Modules:", font=("Segoe UI", 10, "bold")).pack(anchor=tk.W, pady=(0, 2))
+
+        ent_box = ttk.Frame(left_col)
+        ent_box.pack(fill=tk.X, pady=2)
+        ttk.Label(ent_box, text="Tax Jurisdiction:").pack(side=tk.LEFT, padx=(0, 6))
+        self.tax_jurisdiction_var = tk.StringVar(value="GLOBAL")
+        tax_combo = ttk.Combobox(ent_box, textvariable=self.tax_jurisdiction_var, values=["GLOBAL", "US_CA", "EU_DE", "UK", "IN"], state="readonly", width=10)
+        tax_combo.pack(side=tk.LEFT)
+
+        self.enable_wht_var = tk.BooleanVar(value=False)
+        cb_wht = ttk.Checkbutton(left_col, text="Withholding Tax: Deduct statutory WHT on disbursements", variable=self.enable_wht_var)
+        cb_wht.pack(anchor=tk.W, pady=2)
+
+        self.enable_subledgers_var = tk.BooleanVar(value=False)
+        cb_sub = ttk.Checkbutton(left_col, text="Subledgers & 3-Way Match: PO Variance & Inventory Stock", variable=self.enable_subledgers_var)
+        cb_sub.pack(anchor=tk.W, pady=2)
+
         # Primary Generate Button
         self.btn_generate = tk.Button(
             left_col,
@@ -262,7 +284,7 @@ class DesktopGUI:
             cursor="hand2",
             command=self._start_generation_thread,
         )
-        self.btn_generate.pack(fill=tk.X, pady=(16, 6))
+        self.btn_generate.pack(fill=tk.X, pady=(12, 6))
 
         # Progress bar
         self.progress_bar = ttk.Progressbar(left_col, mode="indeterminate")
@@ -353,6 +375,12 @@ class DesktopGUI:
             "round_trip": bool(self.anom_roundtrip_var.get()),
         }
 
+        tax_jur = self.tax_jurisdiction_var.get() if hasattr(self, "tax_jurisdiction_var") else "GLOBAL"
+        if tax_jur == "GLOBAL":
+            tax_jur = None
+        enable_wht = bool(self.enable_wht_var.get()) if hasattr(self, "enable_wht_var") else False
+        enable_subledgers = bool(self.enable_subledgers_var.get()) if hasattr(self, "enable_subledgers_var") else False
+
         self.btn_generate.config(state=tk.DISABLED)
         self.progress_bar.pack(fill=tk.X, pady=(6, 4))
         self.progress_bar.start(10)
@@ -360,18 +388,30 @@ class DesktopGUI:
 
         thread = threading.Thread(
             target=self._run_generation_worker,
-            args=(count, rate, seed, enabled),
+            args=(count, rate, seed, enabled, tax_jur, enable_wht, enable_subledgers),
             daemon=True,
         )
         thread.start()
 
-    def _run_generation_worker(self, count: int, rate: float, seed: int, enabled: Dict[str, bool]):
+    def _run_generation_worker(
+        self,
+        count: int,
+        rate: float,
+        seed: int,
+        enabled: Dict[str, bool],
+        tax_jurisdiction: Optional[str] = None,
+        enable_wht: bool = False,
+        enable_subledgers: bool = False,
+    ):
         try:
             summary = self.state.generate(
                 count=count,
                 anomaly_rate=rate,
                 seed=seed,
                 enabled_anomalies=enabled,
+                tax_jurisdiction=tax_jurisdiction,
+                enable_wht=enable_wht,
+                enable_subledgers=enable_subledgers,
             )
 
             # Schedule UI update on main thread
@@ -884,6 +924,232 @@ class DesktopGUI:
                         hash_snippet,
                     ),
                 )
+
+    # =========================================================================
+    # TAB 5: ENTERPRISE & DYNAMIC FUZZING
+    # =========================================================================
+    def _init_enterprise_tab(self):
+        # Container with 2 columns
+        container = ttk.Frame(self.tab_enterprise)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        left_col = ttk.LabelFrame(container, text="Adaptive Security Fuzzing Feedback Loop", padding=10)
+        left_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
+
+        right_col = ttk.Frame(container)
+        right_col.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(6, 0))
+
+        # --- LEFT COLUMN: FUZZING ---
+        ttk.Label(left_col, text="Dynamic Fuzzing Target:", font=("Segoe UI", 10, "bold")).pack(anchor=tk.W)
+        self.fuzz_target_var = tk.StringVar(value="mock")
+        target_box = ttk.Frame(left_col)
+        target_box.pack(anchor=tk.W, pady=(2, 8))
+        ttk.Radiobutton(target_box, text="Mock ERP App (HTTP/OData)", variable=self.fuzz_target_var, value="mock").pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Radiobutton(target_box, text="SQLite Ledger (ACID / SQLi)", variable=self.fuzz_target_var, value="sqlite").pack(side=tk.LEFT)
+
+        params_frame = ttk.Frame(left_col)
+        params_frame.pack(fill=tk.X, pady=(0, 8))
+
+        ttk.Label(params_frame, text="Campaign Iterations:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.fuzz_iterations_var = tk.IntVar(value=3)
+        ttk.Spinbox(params_frame, from_=1, to=20, textvariable=self.fuzz_iterations_var, width=8).grid(row=0, column=1, sticky=tk.W, padx=6)
+
+        ttk.Label(params_frame, text="Vouchers / Iteration:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.fuzz_count_var = tk.IntVar(value=50)
+        ttk.Spinbox(params_frame, from_=10, to=500, increment=25, textvariable=self.fuzz_count_var, width=8).grid(row=1, column=1, sticky=tk.W, padx=6)
+
+        self.btn_fuzz = tk.Button(
+            left_col,
+            text="🔥 Launch Dynamic Security Fuzzing Campaign",
+            bg="#dc2626",
+            fg="#ffffff",
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            padx=12,
+            pady=6,
+            cursor="hand2",
+            command=self._start_fuzzing_thread,
+        )
+        self.btn_fuzz.pack(fill=tk.X, pady=(6, 6))
+
+        self.fuzz_progress_var = tk.StringVar(value="Fuzzing engine idle.")
+        ttk.Label(left_col, textvariable=self.fuzz_progress_var, style="Muted.TLabel").pack(anchor=tk.W)
+
+        # Fuzzing results display
+        ttk.Label(left_col, text="Fuzzing Campaign Telemetry & Findings:", font=("Segoe UI", 9, "bold")).pack(anchor=tk.W, pady=(8, 2))
+        self.txt_fuzz_results = tk.Text(left_col, height=12, width=45, font=("Consolas", 9), relief="solid", bd=1)
+        self.txt_fuzz_results.pack(fill=tk.BOTH, expand=True)
+        self.txt_fuzz_results.insert(tk.END, "Ready to launch adaptive fuzzing against simulated target.")
+
+        # --- RIGHT COLUMN: TAX ENGINE & ERP CONNECTORS ---
+        tax_frame = ttk.LabelFrame(right_col, text="Multi-Jurisdictional Tax Compliance Engine", padding=10)
+        tax_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
+
+        tax_opts = ttk.Frame(tax_frame)
+        tax_opts.pack(fill=tk.X, pady=(0, 6))
+
+        ttk.Label(tax_opts, text="Jurisdiction:").grid(row=0, column=0, sticky=tk.W)
+        self.tax_report_jur_var = tk.StringVar(value="EU_DE")
+        tax_report_combo = ttk.Combobox(tax_opts, textvariable=self.tax_report_jur_var, values=["EU_DE", "US_CA", "UK", "IN"], state="readonly", width=10)
+        tax_report_combo.grid(row=0, column=1, sticky=tk.W, padx=6)
+
+        ttk.Label(tax_opts, text="Period:").grid(row=0, column=2, sticky=tk.W, padx=(8, 0))
+        self.tax_period_var = tk.StringVar(value="2026-Q1")
+        ttk.Entry(tax_opts, textvariable=self.tax_period_var, width=10).grid(row=0, column=3, sticky=tk.W, padx=6)
+
+        self.btn_tax_report = tk.Button(
+            tax_frame,
+            text="📊 Compute Statutory Tax Return",
+            bg="#0d9488",
+            fg="#ffffff",
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            padx=10,
+            pady=4,
+            cursor="hand2",
+            command=self._start_tax_report_thread,
+        )
+        self.btn_tax_report.pack(fill=tk.X, pady=(4, 6))
+
+        self.txt_tax_results = tk.Text(tax_frame, height=7, width=45, font=("Consolas", 9), relief="solid", bd=1)
+        self.txt_tax_results.pack(fill=tk.BOTH, expand=True)
+        self.txt_tax_results.insert(tk.END, "Generate a dataset first, then click 'Compute Tax Return'.")
+
+        # Connectors & Streaming Frame
+        conn_frame = ttk.LabelFrame(right_col, text="ERP Connectors & Real-Time Streaming Sinks", padding=10)
+        conn_frame.pack(fill=tk.BOTH, expand=True, pady=(6, 0))
+
+        ttk.Label(conn_frame, text="Bidirectional Connectivity Probing (SAP OData, RFC, Oracle REST, Kafka):", style="Muted.TLabel").pack(anchor=tk.W)
+
+        self.btn_probe_conn = ttk.Button(conn_frame, text="🔌 Probe ERP Connectors & Streaming Broker", command=self._probe_connectors)
+        self.btn_probe_conn.pack(fill=tk.X, pady=(6, 6))
+
+        self.txt_conn_results = tk.Text(conn_frame, height=6, width=45, font=("Consolas", 9), relief="solid", bd=1)
+        self.txt_conn_results.pack(fill=tk.BOTH, expand=True)
+        self.txt_conn_results.insert(tk.END, "Click 'Probe ERP Connectors' to verify bidirectional mock integration.")
+
+    # --- Fuzzing Handlers ---
+    def _start_fuzzing_thread(self):
+        iterations = self.fuzz_iterations_var.get()
+        count = self.fuzz_count_var.get()
+        target = self.fuzz_target_var.get()
+
+        self.btn_fuzz.config(state=tk.DISABLED)
+        self.fuzz_progress_var.set(f"Running {iterations} fuzzing iterations against {target}...")
+
+        def _worker():
+            try:
+                report = self.state.run_fuzzing_campaign(iterations=iterations, count=count, target=target)
+                self.root.after(0, lambda: self._on_fuzzing_completed(report))
+            except Exception as e:
+                err = str(e)
+                self.root.after(0, lambda: self._on_fuzzing_error(err))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_fuzzing_completed(self, report: Dict[str, Any]):
+        self.btn_fuzz.config(state=tk.NORMAL)
+        self.fuzz_progress_var.set("Fuzzing campaign completed!")
+
+        self.txt_fuzz_results.delete("1.0", tk.END)
+        lines = [
+            f"Campaign Status: COMPLETED",
+            f"Total Executions: {report.get('total_executions', 0)}",
+            f"Bypasses Detected: {report.get('bypasses_detected', 0)}",
+            f"Application Crashes: {report.get('crashes_detected', 0)}",
+            f"Rules Exercised: {report.get('unique_rules_exercised', 0)}",
+            f"",
+            f"--- Active Mutator Weights ---",
+        ]
+        weights = report.get("mutator_weights", {})
+        for mut, w in weights.items():
+            lines.append(f"  {mut:30s}: {w:.4f}")
+
+        if report.get("findings"):
+            lines.append(f"\n--- Critical Findings ({len(report['findings'])}) ---")
+            for f in report["findings"][:5]:
+                lines.append(f"  [{f.get('finding_type')}] {f.get('description', '')[:50]}")
+
+        self.txt_fuzz_results.insert(tk.END, "\n".join(lines))
+
+    def _on_fuzzing_error(self, err: str):
+        self.btn_fuzz.config(state=tk.NORMAL)
+        self.fuzz_progress_var.set(f"Fuzzing failed: {err}")
+        messagebox.showerror("Fuzzing Error", f"Fuzzing campaign error:\n{err}")
+
+    # --- Tax Report Handlers ---
+    def _start_tax_report_thread(self):
+        jur = self.tax_report_jur_var.get()
+        period = self.tax_period_var.get()
+
+        self.btn_tax_report.config(state=tk.DISABLED)
+
+        def _worker():
+            try:
+                res = self.state.run_tax_report(jurisdiction=jur, period=period)
+                self.root.after(0, lambda: self._on_tax_report_completed(res))
+            except Exception as e:
+                err = str(e)
+                self.root.after(0, lambda: self._on_tax_report_error(err))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_tax_report_completed(self, report: Dict[str, Any]):
+        self.btn_tax_report.config(state=tk.NORMAL)
+        self.txt_tax_results.delete("1.0", tk.END)
+
+        if "error" in report:
+            self.txt_tax_results.insert(tk.END, f"Error: {report['error']}")
+            return
+
+        lines = [
+            f"Jurisdiction: {report.get('jurisdiction')} | Period: {report.get('period')}",
+            f"Currency: {report.get('currency', 'USD')}",
+            f"Gross Taxable Sales:   ${float(report.get('gross_taxable_sales', 0)):,.2f}",
+            f"Output Tax Due:        ${float(report.get('output_tax_due', 0)):,.2f}",
+            f"Input Tax Deductible:  ${float(report.get('input_tax_deductible', 0)):,.2f}",
+            f"Reverse Charge Wash:   ${float(report.get('reverse_charge_tax', 0)):,.2f}",
+            f"Net Tax Payable:       ${float(report.get('net_tax_payable', 0)):,.2f}",
+        ]
+        self.txt_tax_results.insert(tk.END, "\n".join(lines))
+
+    def _on_tax_report_error(self, err: str):
+        self.btn_tax_report.config(state=tk.NORMAL)
+        messagebox.showerror("Tax Report Error", f"Failed to compute tax report:\n{err}")
+
+    # --- Connector Probe Handler ---
+    def _probe_connectors(self):
+        self.txt_conn_results.delete("1.0", tk.END)
+        lines = []
+
+        try:
+            from gl_fuzzer.connectors import ODataV4Connector, SAPRFCConnector, OracleRESTConnector
+            from gl_fuzzer.streaming import EmbeddedKafkaBroker, KafkaGLPublisher
+
+            # SAP OData Probe
+            sap_odata = ODataV4Connector()
+            odata_ok = sap_odata.connect()
+            balances = sap_odata.fetch_account_balances('1000', 2026)
+            lines.append(f"[SAP OData API]:      Connected: {odata_ok} | Entities: {len(balances)} accounts synchronized")
+
+            # SAP RFC Probe
+            sap_rfc = SAPRFCConnector()
+            rfc_ok = sap_rfc.connect()
+            lines.append(f"[SAP NetWeaver RFC]:   Connected: {rfc_ok} | Mock RFC Handshake: READY")
+
+            # Oracle Fusion Probe
+            ora = OracleRESTConnector()
+            ora_ok = ora.connect()
+            lines.append(f"[Oracle Fusion REST]: Connected: {ora_ok} | REST Ingestion: READY")
+
+            # Kafka Stream Probe
+            pub = KafkaGLPublisher()
+            lines.append(f"[Embedded Kafka]:     Partitions: {pub.num_partitions} | Event Streaming: LIVE")
+
+        except Exception as e:
+            lines.append(f"Probe error: {e}")
+
+        self.txt_conn_results.insert(tk.END, "\n".join(lines))
 
     def _initial_load(self):
         """Initial background pre-population so app starts ready."""

@@ -19,6 +19,12 @@ class Currency(str, Enum):
     CHF = "CHF"
     CAD = "CAD"
     AUD = "AUD"
+    BRL = "BRL"
+    INR = "INR"
+    CNY = "CNY"
+    MXN = "MXN"
+    SGD = "SGD"
+    AED = "AED"
 
 
 class ExchangeRateProvider:
@@ -33,40 +39,48 @@ class ExchangeRateProvider:
         Currency.CHF: 1.1350,
         Currency.CAD: 0.7380,
         Currency.AUD: 0.6550,
+        Currency.BRL: 0.1850,
+        Currency.INR: 0.0118,
+        Currency.CNY: 0.1380,
+        Currency.MXN: 0.0520,
+        Currency.SGD: 0.7450,
+        Currency.AED: 0.2723,
     }
 
-    def __init__(self, seed: Optional[int] = 42, year: int = 2026):
+    def __init__(self, seed: Optional[int] = 42, year: int = 2026, years: Optional[List[int]] = None):
         self.rng = np.random.default_rng(seed)
         self.year = year
+        self.years = years if years is not None else [year - 1, year, year + 1]
         self._rate_cache: Dict[Tuple[str, Currency], Decimal] = {}
         self._precompute_annual_rates()
 
     def _precompute_annual_rates(self) -> None:
-        """Precomputes daily spot exchange rates relative to USD for the fiscal year."""
-        start_date = date(self.year, 1, 1)
-        total_days = 366  # Support leap years
-
+        """Precomputes daily spot exchange rates relative to USD for all configured fiscal years."""
         # Initialize current rate with baseline
         current_rates = {curr: base for curr, base in self.BASELINE_TO_USD.items()}
         volatility = 0.006  # ~0.6% daily volatility
         reversion_speed = 0.05  # Mean reversion pulling back to baseline
 
-        for day_offset in range(total_days):
-            current_date = start_date + timedelta(days=day_offset)
-            date_str = current_date.isoformat()
+        for y in self.years:
+            start_date = date(y, 1, 1)
+            total_days = 366 if (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)) else 365
 
-            for curr, baseline in self.BASELINE_TO_USD.items():
-                if curr == Currency.USD:
-                    rate_dec = Decimal("1.000000")
-                else:
-                    # Mean-reverting Ornstein-Uhlenbeck / GBM drift
-                    drift = reversion_speed * (baseline - current_rates[curr])
-                    shock = self.rng.normal(0, volatility * current_rates[curr])
-                    new_rate = max(0.0001, current_rates[curr] + drift + shock)
-                    current_rates[curr] = new_rate
-                    rate_dec = Decimal(f"{new_rate:.6f}")
+            for day_offset in range(total_days):
+                current_date = start_date + timedelta(days=day_offset)
+                date_str = current_date.isoformat()
 
-                self._rate_cache[(date_str, curr)] = rate_dec
+                for curr, baseline in self.BASELINE_TO_USD.items():
+                    if curr == Currency.USD:
+                        rate_dec = Decimal("1.000000")
+                    else:
+                        # Mean-reverting Ornstein-Uhlenbeck / GBM drift
+                        drift = reversion_speed * (baseline - current_rates[curr])
+                        shock = self.rng.normal(0, volatility * current_rates[curr])
+                        new_rate = max(0.0001, current_rates[curr] + drift + shock)
+                        current_rates[curr] = new_rate
+                        rate_dec = Decimal(f"{new_rate:.6f}")
+
+                    self._rate_cache[(date_str, curr)] = rate_dec
 
     def get_rate_to_usd(self, from_currency: Currency | str, date_str: str) -> Decimal:
         """Returns the spot conversion rate from from_currency to USD on date_str."""

@@ -275,3 +275,60 @@ class P2PCycleGenerator:
             business_cycle="P2P",
             lines=lines,
         )
+
+    def generate_vendor_payment(
+        self,
+        batch_id: str,
+        invoice_entry: JournalEntry,
+        company_code: str = "1000",
+    ) -> JournalEntry:
+        """Generates matching vendor payment document (KZ) for an existing invoice."""
+        amount = invoice_entry.total_debits
+        vendor = invoice_entry.lines[0].vendor_id or str(self.rng.choice(self.vendors))
+        pay_id = f"DOC_PAY_{uuid.uuid4().hex[:8].upper()}"
+        doc_date = invoice_entry.posting_date
+
+        lines = [
+            LineItem(
+                line_id=f"{pay_id}-001",
+                entry_id=pay_id,
+                line_number=1,
+                account_code="20000",
+                account_name="Accounts Payable - Trade",
+                debit_credit=DebitCredit.DEBIT,
+                amount=amount,
+                posting_key="25",
+                vendor_id=vendor,
+                clearing_doc=invoice_entry.document_number,
+                line_text=f"Payment settlement for {invoice_entry.document_number}",
+            ),
+            LineItem(
+                line_id=f"{pay_id}-002",
+                entry_id=pay_id,
+                line_number=2,
+                account_code="10100",
+                account_name="Operating Cash & Bank",
+                debit_credit=DebitCredit.CREDIT,
+                amount=amount,
+                posting_key="50",
+                line_text=f"Electronic disbursement for {vendor}",
+            ),
+        ]
+        return JournalEntry(
+            entry_id=pay_id,
+            batch_id=batch_id,
+            company_code=company_code,
+            fiscal_year=invoice_entry.fiscal_year,
+            fiscal_period=invoice_entry.fiscal_period,
+            document_type=DocumentType.KZ,
+            document_number=f"150{self.rng.integers(100000, 999999)}",
+            posting_date=doc_date,
+            document_date=doc_date,
+            created_at=f"{doc_date}T16:00:00Z",
+            created_by="AUTO_F110_PAYRUN",
+            reference=f"ACH-{self.rng.integers(1000000, 9999999)}",
+            header_text=f"Payment Run {vendor}",
+            business_cycle="P2P",
+            lines=lines,
+        )
+

@@ -13,6 +13,11 @@ class AnomalyType(str, Enum):
     BENFORD_SKEW = "BENFORD_SKEW"
     ANOMALOUS_ACCOUNT_PAIRING = "ANOMALOUS_ACCOUNT_PAIRING"
     CIRCULAR_INTERCOMPANY_ROUND_TRIP = "CIRCULAR_INTERCOMPANY_ROUND_TRIP"
+    TAX_EVASION_ZERO_WHT = "TAX_EVASION_ZERO_WHT"
+    PHANTOM_PO_THREE_WAY_BYPASS = "PHANTOM_PO_THREE_WAY_BYPASS"
+    INVENTORY_SHRINKAGE_CONCEALMENT = "INVENTORY_SHRINKAGE_CONCEALMENT"
+    SECURITY_FUZZ_BYPASS = "SECURITY_FUZZ_BYPASS"
+    SECURITY_FUZZ_CRASH = "SECURITY_FUZZ_CRASH"
 
 
 class SOXControlRef(str, Enum):
@@ -21,6 +26,10 @@ class SOXControlRef(str, Enum):
     FORENSIC_BENFORD = "SOX-404-DATA-INTEGRITY: Vendor Kickback / Artificial Invoice Fabrication Screening"
     GL_SUSPENSE_CONSISTENCY = "SOX-404-GL-PAIRING: Suspense Account Parking & Irregular Balance Transfers"
     INTERCOMPANY_ROUND_TRIP = "SOX-404-IC-03: Intercompany Round-Tripping & Artificial Volume Inflation"
+    TAX_WITHHOLDING_COMPLIANCE = "SOX-404-TAX-01: Vendor Payment WHT Statutory Deduction Compliance"
+    THREE_WAY_MATCH_BYPASS = "SOX-404-P2P-02: Unauthorized Vendor Invoice Approval Without GR/PO Match"
+    INVENTORY_INTEGRITY = "SOX-404-STOCK-01: Inventory Valuation and Physical Count Reconciliation"
+    CYBER_LEDGER_RESILIENCE = "SOX-404-ITGC-01: Relational Ledger Integrity & Constraint Injection Resilience"
 
 
 class AnomalyRecord(BaseModel):

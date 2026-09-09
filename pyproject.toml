@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synthetic-general-ledger-fuzzer"
-version = "1.0.0"
+version = "2.0.0"
 description = "Enterprise-Grade Synthetic General Ledger (GL) Fuzzer and Calibrated Anomaly Engine"
 readme = "README.md"
 license = { text = "MIT" }

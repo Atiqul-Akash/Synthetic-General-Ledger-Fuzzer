@@ -21,6 +21,11 @@ class DocumentType(str, Enum):
     DZ = "DZ"  # Customer Payment (O2C)
     WA = "WA"  # Goods Issue (O2C)
     WE = "WE"  # Goods Receipt (P2P)
+    RE = "RE"  # Invoice Receipt with Variance (P2P 3-way match)
+    RV = "RV"  # Customer Billing Document (O2C)
+    TC = "TC"  # Tax Clearing Document
+    WHT = "WHT"  # Withholding Tax Payment disbursement
+    GI = "GI"  # Internal Goods Issue with COGS derivation
     MJE = "MJE"  # Manual Adjusting Journal Entry
     IC = "IC"  # Intercompany Transfer Document
 
