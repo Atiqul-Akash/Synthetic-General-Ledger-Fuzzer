@@ -8,7 +8,7 @@ turnover volume, or short-term liquidity ratios.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from typing import List
 import uuid
@@ -39,7 +39,8 @@ class CircularRoundTrippingMutator(BaseAnomalyMutator):
         if len(self.entities) < 3:
             return records
 
-        num_cycles = max(1, int(len(batch.entries) * injection_rate / 6))
+        base_len = getattr(context, "base_entry_count", 0) or len(batch.entries)
+        num_cycles = max(1, int(base_len * injection_rate / 6))
 
         for _ in range(num_cycles):
             anomaly_id = f"ANOM_ROUNDTRIP_{uuid.uuid4().hex[:8].upper()}"
@@ -48,7 +49,7 @@ class CircularRoundTrippingMutator(BaseAnomalyMutator):
 
             # Financial close period (month end)
             close_date = context.calendar.random_month_end_date()
-            base_time = context.calendar.normal_business_time()
+            base_dt = datetime.combine(close_date, time(8, 30, 0))
 
             cycle_entries: List[JournalEntry] = []
             cycle_entry_ids: List[str] = []
@@ -57,13 +58,11 @@ class CircularRoundTrippingMutator(BaseAnomalyMutator):
             # Define directed cycle: Entity 0 -> Entity 1 -> Entity 2 -> Entity 0
             entity_cycle = [self.entities[0], self.entities[1], self.entities[2], self.entities[0]]
 
-            base_dt = datetime.combine(close_date, base_time)
-
             for hop_idx in range(len(entity_cycle) - 1):
                 sender_entity = entity_cycle[hop_idx]
                 receiver_entity = entity_cycle[hop_idx + 1]
 
-                hop_dt = base_dt + timedelta(hours=int(hop_idx * 4))
+                hop_dt = base_dt + timedelta(hours=int(hop_idx * 2), minutes=int(context.rng.integers(0, 30)))
                 hop_date = hop_dt.date()
                 p_date_str = hop_date.isoformat()
                 p_time_str = hop_dt.time().strftime("%H:%M:%S")

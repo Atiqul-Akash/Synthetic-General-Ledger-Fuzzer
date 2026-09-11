@@ -27,13 +27,13 @@ class ManifestExporter:
         manifest_hash = hashlib.sha256(json_bytes).hexdigest()
         data["manifest_sha256"] = manifest_hash
 
-        # Re-write with hash included
-        with open(out_path, "w", encoding="utf-8") as f:
+        # Re-write with hash included using LF line endings
+        with open(out_path, "w", encoding="utf-8", newline="\n") as f:
             json.dump(data, f, indent=2)
 
         # Write standard detached checksum file
         sha_path = out_path.with_name(out_path.name + ".sha256")
-        with open(out_path, "rb") as f_in, open(sha_path, "w", encoding="utf-8") as f_out:
+        with open(out_path, "rb") as f_in, open(sha_path, "w", encoding="utf-8", newline="\n") as f_out:
             file_digest = hashlib.sha256(f_in.read()).hexdigest()
             f_out.write(f"{file_digest}  {out_path.name}\n")
 
@@ -46,17 +46,17 @@ class ManifestExporter:
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
         rows = []
-        for anom in manifest.anomalies:
+        for anom in (manifest.anomalies or []):
             rows.append({
                 "anomaly_id": anom.anomaly_id,
-                "anomaly_type": anom.anomaly_type.value,
+                "anomaly_type": anom.anomaly_type.value if hasattr(anom.anomaly_type, "value") else str(anom.anomaly_type),
                 "sox_control": anom.sox_control,
                 "audit_script": anom.audit_script,
                 "risk_level": anom.risk_level,
                 "description": anom.description,
-                "affected_entry_ids": ",".join(anom.affected_entry_ids),
-                "affected_line_ids": ",".join(anom.affected_line_ids),
-                "parameters_json": json.dumps(anom.parameters),
+                "affected_entry_ids": ",".join(anom.affected_entry_ids or []),
+                "affected_line_ids": ",".join(anom.affected_line_ids or []),
+                "parameters_json": json.dumps(anom.parameters or {}, default=str),
                 "forensic_indicator": anom.forensic_indicator,
             })
 

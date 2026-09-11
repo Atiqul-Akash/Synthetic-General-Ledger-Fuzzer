@@ -96,7 +96,7 @@ class P2PCycleGenerator:
         )
 
         # 2. Invoice Receipt (KR) - posted 2 to 7 days after GR
-        ir_date = gr_date + timedelta(days=int(self.rng.integers(2, 8)))
+        ir_date = min(gr_date + timedelta(days=int(self.rng.integers(2, 8))), self.calendar.end_date)
         ir_time = self.calendar.normal_business_time()
         ir_dt = f"{ir_date.isoformat()}T{ir_time.isoformat()}Z"
         ir_id = f"DOC_IR_{uuid.uuid4().hex[:8].upper()}"
@@ -148,7 +148,7 @@ class P2PCycleGenerator:
         )
 
         # 3. Vendor Payment (KZ) - posted 15 to 30 days after Invoice (Net 30 terms)
-        pay_date = ir_date + timedelta(days=int(self.rng.integers(15, 31)))
+        pay_date = min(ir_date + timedelta(days=int(self.rng.integers(15, 31))), self.calendar.end_date)
         pay_time = self.calendar.normal_business_time()
         pay_dt = f"{pay_date.isoformat()}T{pay_time.isoformat()}Z"
         pay_id = f"DOC_PAY_{uuid.uuid4().hex[:8].upper()}"
@@ -219,9 +219,21 @@ class P2PCycleGenerator:
             p_date_str = p_date.isoformat()
             year, month = p_date.year, p_date.month
         else:
-            p_date_str = posting_date
-            parts = posting_date.split("-")
-            year, month = int(parts[0]), int(parts[1])
+            p_date_str = str(posting_date)
+            if "-" in p_date_str:
+                parts = p_date_str.split("-")
+                year, month = int(parts[0]), int(parts[1])
+            elif len(p_date_str) == 8 and p_date_str.isdigit():
+                year, month = int(p_date_str[:4]), int(p_date_str[4:6])
+                p_date_str = f"{year:04d}-{month:02d}-{int(p_date_str[6:8]):02d}"
+            else:
+                try:
+                    from datetime import date
+                    parsed_d = date.fromisoformat(p_date_str)
+                    year, month = parsed_d.year, parsed_d.month
+                    p_date_str = parsed_d.isoformat()
+                except Exception:
+                    year, month = 2026, 1
 
         p_time_str = posting_time if posting_time is not None else self.calendar.normal_business_time().isoformat()
         entry_id = f"DOC_AP_{uuid.uuid4().hex[:8].upper()}"

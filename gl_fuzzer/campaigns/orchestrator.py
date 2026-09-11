@@ -277,7 +277,7 @@ class APTNarrativeOrchestrator:
             entries.append(JournalEntry(
                 entry_id=eid, batch_id=camp_id, company_code=actor.company_code, fiscal_year=year, fiscal_period=period,
                 document_type=DocumentType.WE, document_number=doc_num, posting_date=f"{year}-02-{10+i:02d}",
-                document_date=f"{year}-02-{10+i:02d}", created_at=f"{year}-02-{10+i:02d}T10:00:00", created_by=actor.actor_id,
+                document_date=f"{year}-02-{10+i:02d}", created_at=f"{year}-02-{10+i:02d}T10:00:00Z", created_by=actor.actor_id,
                 reference=f"PO-APT-{i+1}", header_text="Goods Receipt at Adjusted Price", lines=lines,
                 is_anomaly=True, anomaly_ids=["APT_INVENTORY_CREEP"],
             ))
@@ -300,7 +300,7 @@ class APTNarrativeOrchestrator:
             entries.append(JournalEntry(
                 entry_id=eid, batch_id=camp_id, company_code=actor.company_code, fiscal_year=year, fiscal_period=period,
                 document_type=DocumentType.WA, document_number=doc_num, posting_date=f"{year}-05-{12+i:02d}",
-                document_date=f"{year}-05-{12+i:02d}", created_at=f"{year}-05-{12+i:02d}T11:30:00", created_by=actor.actor_id,
+                document_date=f"{year}-05-{12+i:02d}", created_at=f"{year}-05-{12+i:02d}T11:30:00Z", created_by=actor.actor_id,
                 reference=f"DELV-APT-{i+1}", header_text="Goods Issue with Elevated MAP", lines=lines,
                 is_anomaly=True, anomaly_ids=["APT_MARGIN_DEPRESSION"],
             ))
@@ -318,7 +318,7 @@ class APTNarrativeOrchestrator:
         entry = JournalEntry(
             entry_id=eid, batch_id=camp_id, company_code=actor.company_code, fiscal_year=year, fiscal_period=period,
             document_type=DocumentType.IC, document_number="1800000001", posting_date=f"{year}-08-20",
-            document_date=f"{year}-08-20", created_at=f"{year}-08-20T14:15:00", created_by=actor.actor_id,
+            document_date=f"{year}-08-20", created_at=f"{year}-08-20T14:15:00Z", created_by=actor.actor_id,
             reference="IC-RECON-Q3", header_text="Intercompany working capital wash", lines=lines,
             is_anomaly=True, anomaly_ids=["APT_INTERCOMPANY_WASH"],
         )
@@ -336,7 +336,7 @@ class APTNarrativeOrchestrator:
         entry = JournalEntry(
             entry_id=eid, batch_id=camp_id, company_code=actor.company_code, fiscal_year=year, fiscal_period=period,
             document_type=DocumentType.MJE, document_number="1000099999", posting_date=f"{year}-12-30",
-            document_date=f"{year}-12-30", created_at=f"{year}-12-30T03:45:00", created_by=actor.actor_id,
+            document_date=f"{year}-12-30", created_at=f"{year}-12-30T03:45:00Z", created_by=actor.actor_id,
             reference="ADJ-YE-INV", header_text="Year-End Inventory Shrinkage Balancing", lines=lines,
             is_anomaly=True, anomaly_ids=["INVENTORY_SHRINKAGE_CONCEALMENT", "GHOST_OFF_HOURS_POSTING"],
         )
@@ -354,7 +354,7 @@ class APTNarrativeOrchestrator:
         entry = JournalEntry(
             entry_id=eid, batch_id=camp_id, company_code=actor.company_code, fiscal_year=year, fiscal_period=period,
             document_type=DocumentType.KR, document_number="1900000010", posting_date=f"{year}-02-15",
-            document_date=f"{year}-02-15", created_at=f"{year}-02-15T11:00:00", created_by=actor.actor_id,
+            document_date=f"{year}-02-15", created_at=f"{year}-02-15T11:00:00Z", created_by=actor.actor_id,
             reference="INV-ADVISORY-01", header_text="Management Advisory Retainer", lines=lines,
             is_anomaly=True, anomaly_ids=["SMURFING_DOA_BYPASS"],
         )
@@ -375,7 +375,7 @@ class APTNarrativeOrchestrator:
             entries.append(JournalEntry(
                 entry_id=eid, batch_id=camp_id, company_code=src, fiscal_year=year, fiscal_period=period,
                 document_type=DocumentType.IC, document_number=f"18000000{i+2}", posting_date=f"{year}-06-25",
-                document_date=f"{year}-06-25", created_at=f"{year}-06-25T16:00:00", created_by=actor.actor_id,
+                document_date=f"{year}-06-25", created_at=f"{year}-06-25T16:00:00Z", created_by=actor.actor_id,
                 reference=f"IC-LOOP-{src}-{dst}", header_text="Intercompany treasury settlement", lines=lines,
                 is_anomaly=True, anomaly_ids=["CIRCULAR_ROUND_TRIP"],
             ))
@@ -393,7 +393,7 @@ class APTNarrativeOrchestrator:
         entry = JournalEntry(
             entry_id=eid, batch_id=camp_id, company_code=actor.company_code, fiscal_year=year, fiscal_period=period,
             document_type=DocumentType.MJE, document_number="1000099998", posting_date=f"{year}-12-31",
-            document_date=f"{year}-12-31", created_at=f"{year}-12-31T03:15:00", created_by=actor.actor_id,
+            document_date=f"{year}-12-31", created_at=f"{year}-12-31T03:15:00Z", created_by=actor.actor_id,
             reference="YE-RECLASS-SPV", header_text="SPV Liability Reclassification to Revenue", lines=lines,
             is_anomaly=True, anomaly_ids=["ANOMALOUS_PAIRING_REVENUE", "OFF_HOURS_OVERRIDE"],
         )
@@ -415,7 +415,7 @@ class APTNarrativeOrchestrator:
             entries.append(JournalEntry(
                 entry_id=eid, batch_id=camp_id, company_code=actor.company_code, fiscal_year=year, fiscal_period=period,
                 document_type=DocumentType.KR, document_number=f"19000000{20+i}", posting_date=f"{year}-04-10",
-                document_date=f"{year}-04-10", created_at=f"{year}-04-10T09:30:00", created_by=actor.actor_id,
+                document_date=f"{year}-04-10", created_at=f"{year}-04-10T09:30:00Z", created_by=actor.actor_id,
                 reference=f"INV-OFFICE-SMURF-{i+1}", header_text="Facility Operations Split Invoice", lines=lines,
                 is_anomaly=True, anomaly_ids=["SMURFING_DOA_BYPASS"],
             ))
@@ -433,7 +433,7 @@ class APTNarrativeOrchestrator:
         entry = JournalEntry(
             entry_id=eid, batch_id=camp_id, company_code=actor.company_code, fiscal_year=year, fiscal_period=period,
             document_type=DocumentType.KZ, document_number="1500000099", posting_date=f"{year}-07-15",
-            document_date=f"{year}-07-15", created_at=f"{year}-07-15T14:30:00", created_by=actor.actor_id,
+            document_date=f"{year}-07-15", created_at=f"{year}-07-15T14:30:00Z", created_by=actor.actor_id,
             reference="PMT-EXP-BATCH", header_text="Full disbursement without withholding tax", lines=lines,
             is_anomaly=True, anomaly_ids=["TAX_EVASION_ZERO_WHT"],
         )

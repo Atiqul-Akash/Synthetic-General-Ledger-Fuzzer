@@ -40,7 +40,8 @@ class BenfordSkewMutator(BaseAnomalyMutator):
         if not batch.entries:
             return records
 
-        target_count = max(1, int(len(batch.entries) * injection_rate))
+        base_len = getattr(context, "base_entry_count", 0) or len(batch.entries)
+        target_count = max(1, int(base_len * injection_rate))
         # Select balanced candidate entries that are not yet flagged as anomalous
         candidates = [e for e in batch.entries if not e.is_anomaly and len(e.lines) == 2]
         if not candidates:

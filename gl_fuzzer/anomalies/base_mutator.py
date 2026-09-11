@@ -24,6 +24,7 @@ class MutationContext:
         self.coa = coa
         self.calendar = calendar
         self.rng = rng or np.random.default_rng()
+        self.base_entry_count: int = 0
 
 
 class BaseAnomalyMutator(ABC):

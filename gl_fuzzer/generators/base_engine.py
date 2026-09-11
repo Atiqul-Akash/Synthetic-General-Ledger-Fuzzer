@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, List, Optional
 import uuid
@@ -61,7 +61,7 @@ class BaseSynthesisEngine:
         """Generates a batch of valid, balanced journal entries across all standard accounting cycles."""
         b_id = batch_id or f"BATCH_{uuid.uuid4().hex[:8].upper()}"
         cmp = company_code or str(self.rng.choice(self.company_codes))
-        now_iso = datetime.now().isoformat()
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         entries: List[JournalEntry] = []
 

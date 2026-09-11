@@ -112,6 +112,8 @@ class DesktopGUI:
         self.tab_export = ttk.Frame(self.notebook, padding=12)
         self.tab_enterprise = ttk.Frame(self.notebook, padding=12)
         self.tab_frontier = ttk.Frame(self.notebook, padding=12)
+        self.tab_agents = ttk.Frame(self.notebook, padding=12)
+        self.tab_legacy = ttk.Frame(self.notebook, padding=12)
 
         self.notebook.add(self.tab_synthesis, text=" ⚙️ 1. Synthesis & Generation ")
         self.notebook.add(self.tab_explorer, text=" 📑 2. Voucher & Ledger Explorer ")
@@ -119,6 +121,8 @@ class DesktopGUI:
         self.notebook.add(self.tab_export, text=" 📦 4. Export & Artifacts ")
         self.notebook.add(self.tab_enterprise, text=" ⚡ 5. Enterprise & Dynamic Fuzzing ")
         self.notebook.add(self.tab_frontier, text=" 🧬 6. APT, MDM & Remediation ")
+        self.notebook.add(self.tab_agents, text=" 🤖 7. LLM Fraud Agents Studio ")
+        self.notebook.add(self.tab_legacy, text=" 🏛️ 8. Legacy Mainframe & EDI ")
 
         self._init_synthesis_tab()
         self._init_explorer_tab()
@@ -126,6 +130,9 @@ class DesktopGUI:
         self._init_export_tab()
         self._init_enterprise_tab()
         self._init_frontier_tab()
+        self._init_agents_tab()
+        self._init_legacy_tab()
+
 
 
     def _build_status_bar(self):
@@ -1431,18 +1438,307 @@ class DesktopGUI:
         self.txt_remediation_results.insert(tk.END, "\n".join(lines))
 
 
-    def _on_remediation_error(self, err: str):
-        self.btn_remediation.config(state=tk.NORMAL)
-        messagebox.showerror("Remediation Error", f"Failed to generate patch:\n{err}")
+    # =========================================================================
+    # TAB 7: LLM FRAUD AGENTS STUDIO
+    # =========================================================================
+    def _init_agents_tab(self):
+        container = ttk.Frame(self.tab_agents)
+        container.pack(fill=tk.BOTH, expand=True)
 
+        left_col = ttk.LabelFrame(container, text="Autonomous Generative Fraud Persona Parameters", padding=10)
+        left_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 6), ipadx=10)
+
+        right_col = ttk.LabelFrame(container, text="Conversational Social Engineering Transcript", padding=10)
+        right_col.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(6, 0))
+
+        # Persona Selector
+        ttk.Label(left_col, text="Agent Persona:", font=("Segoe UI", 10, "bold")).pack(anchor=tk.W)
+        self.agent_persona_var = tk.StringVar(value="EXECUTIVE_CFO")
+        persona_combo = ttk.Combobox(
+            left_col,
+            textvariable=self.agent_persona_var,
+            values=["EXECUTIVE_CFO", "COLLUSIVE_VENDOR", "AUDITOR_DECEPTOR"],
+            state="readonly",
+            width=28,
+        )
+        persona_combo.pack(anchor=tk.W, pady=(2, 8))
+
+        # Target Voucher
+        ttk.Label(left_col, text="Target Voucher ID:").pack(anchor=tk.W)
+        self.agent_voucher_var = tk.StringVar(value="VCH-2026-9081")
+        ttk.Entry(left_col, textvariable=self.agent_voucher_var, width=28).pack(anchor=tk.W, pady=(2, 8))
+
+        # Disputed Amount
+        ttk.Label(left_col, text="Transaction Dollar Amount:").pack(anchor=tk.W)
+        self.agent_amount_var = tk.StringVar(value="$125,000.00")
+        ttk.Entry(left_col, textvariable=self.agent_amount_var, width=28).pack(anchor=tk.W, pady=(2, 8))
+
+        # Counterparty Name
+        ttk.Label(left_col, text="Target Counterparty / Vendor:").pack(anchor=tk.W)
+        self.agent_vendor_var = tk.StringVar(value="Apex Strategic Advisory Partners")
+        ttk.Entry(left_col, textvariable=self.agent_vendor_var, width=28).pack(anchor=tk.W, pady=(2, 12))
+
+        self.btn_gen_dialogue = tk.Button(
+            left_col,
+            text="🎭 Generate Social Engineering Thread",
+            bg="#7c3aed",
+            fg="#ffffff",
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            padx=10,
+            pady=6,
+            cursor="hand2",
+            command=self._start_agent_dialogue_thread,
+        )
+        self.btn_gen_dialogue.pack(fill=tk.X, pady=(4, 6))
+
+        self.btn_save_eml = ttk.Button(
+            left_col,
+            text="💾 Save to RFC-2822 .EML File...",
+            command=self._save_agent_eml,
+        )
+        self.btn_save_eml.pack(fill=tk.X, pady=(2, 4))
+
+        self.lbl_agent_status = ttk.Label(left_col, text="Agent generator idle.", style="Muted.TLabel")
+        self.lbl_agent_status.pack(anchor=tk.W, pady=(4, 0))
+
+        # Right Column: Transcript Box
+        self.txt_dialogue_results = tk.Text(right_col, wrap=tk.WORD, font=("Segoe UI", 9), relief="solid", bd=1)
+        self.txt_dialogue_results.pack(fill=tk.BOTH, expand=True)
+        self.txt_dialogue_results.insert(tk.END, "Configure persona parameters on the left and click 'Generate Social Engineering Thread'.\n")
+
+    def _start_agent_dialogue_thread(self):
+        persona = self.agent_persona_var.get()
+        voucher = self.agent_voucher_var.get()
+        amount = self.agent_amount_var.get()
+        vendor = self.agent_vendor_var.get()
+
+        self.btn_gen_dialogue.config(state=tk.DISABLED)
+        self.lbl_agent_status.config(text="Simulating dialogue turns...")
+
+        def _worker():
+            try:
+                res = self.state.run_agent_dialogue(
+                    persona=persona,
+                    scenario="APOLLO_OVERRIDE",
+                    voucher=voucher,
+                    amount=amount,
+                    vendor=vendor,
+                )
+                self.root.after(0, lambda: self._on_agent_dialogue_completed(res))
+            except Exception as e:
+                err = str(e)
+                self.root.after(0, lambda: self._on_agent_dialogue_error(err))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_agent_dialogue_completed(self, data: Dict[str, Any]):
+        self.btn_gen_dialogue.config(state=tk.NORMAL)
+        self.lbl_agent_status.config(text=f"Generated {len(data.get('turns', []))} turns (Thread {data.get('thread_id')}).")
+        self.txt_dialogue_results.delete("1.0", tk.END)
+
+        lines = [
+            f"=== Social Engineering Campaign: {data.get('subject')} ===",
+            f"Campaign ID:  {data.get('campaign_id')} | Thread ID: {data.get('thread_id')}",
+            f"Persona:      {data.get('persona')} | Scenario: {data.get('pretext_scenario')}",
+            f"Voucher ID:   {data.get('target_voucher_id')}",
+            f"Audit Summary: {data.get('audit_notes')}",
+            "=" * 70,
+            "",
+        ]
+        for t in data.get("turns", []):
+            tactic = f"[{t.get('persuasion_tactic')}]" if t.get("persuasion_tactic") else "[OBJECTION]"
+            resolved = " (RESOLVED)" if t.get("objection_resolved") else ""
+            lines.append(f"▶ Turn {t.get('turn_index')} — {t.get('speaker_name')} ({t.get('speaker_role')}) {tactic}{resolved}")
+            lines.append(f"  {t.get('message_body').strip()}")
+            lines.append("-" * 70)
+
+        self.txt_dialogue_results.insert(tk.END, "\n".join(lines))
+        self._last_agent_data = data
+
+    def _on_agent_dialogue_error(self, err: str):
+        self.btn_gen_dialogue.config(state=tk.NORMAL)
+        self.lbl_agent_status.config(text="Generation failed.")
+        messagebox.showerror("Agent Dialogue Error", f"Failed to simulate dialogue:\n{err}")
+
+    def _save_agent_eml(self):
+        if not hasattr(self, "_last_agent_data") or not self._last_agent_data:
+            messagebox.showinfo("Export Notice", "Please generate a dialogue thread first.")
+            return
+        dest = filedialog.asksaveasfilename(
+            title="Save Email Thread (.eml)",
+            defaultextension=".eml",
+            filetypes=[("Email Message", "*.eml"), ("All Files", "*.*")],
+            initialfile=f"{self._last_agent_data.get('thread_id', 'thread')}.eml",
+        )
+        if dest:
+            from gl_fuzzer.documents.email_generator import EmailThreadGenerator
+            from gl_fuzzer.agents.models import SocialEngineeringThread
+            th = SocialEngineeringThread(**self._last_agent_data)
+            EmailThreadGenerator.generate_from_social_engineering_thread(Path(dest), th)
+            messagebox.showinfo("Export Successful", f"Email thread saved to:\n{dest}")
+
+    # =========================================================================
+    # TAB 8: LEGACY MAINFRAME & EDI STUDIO
+    # =========================================================================
+    def _init_legacy_tab(self):
+        container = ttk.Frame(self.tab_legacy)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        left_col = ttk.LabelFrame(container, text="Legacy Protocol & Fuzzing Parameters", padding=10)
+        left_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 6), ipadx=10)
+
+        right_col = ttk.LabelFrame(container, text="Serialized Protocol Stream Output", padding=10)
+        right_col.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(6, 0))
+
+        ttk.Label(left_col, text="Target Protocol:", font=("Segoe UI", 10, "bold")).pack(anchor=tk.W)
+        self.legacy_proto_var = tk.StringVar(value="ANSI_X12_810")
+        proto_combo = ttk.Combobox(
+            left_col,
+            textvariable=self.legacy_proto_var,
+            values=[
+                "ANSI_X12_810",
+                "ANSI_X12_850",
+                "ANSI_X12_856",
+                "EDIFACT_INVOIC",
+                "EDIFACT_ORDERS",
+                "COBOL_COPYBOOK_80",
+                "COBOL_COPYBOOK_132",
+                "EBCDIC_BINARY",
+                "NACHA_ACH",
+                "BAI2",
+                "SWIFT_MT940",
+            ],
+            state="readonly",
+            width=28,
+        )
+        proto_combo.pack(anchor=tk.W, pady=(2, 6))
+
+        ttk.Label(left_col, text="Item / Record Count:").pack(anchor=tk.W)
+        self.legacy_count_var = tk.IntVar(value=5)
+        ttk.Spinbox(left_col, from_=1, to=100, textvariable=self.legacy_count_var, width=10).pack(anchor=tk.W, pady=(2, 6))
+
+        ttk.Label(left_col, text="Transaction Dollar Amount:").pack(anchor=tk.W)
+        self.legacy_amount_var = tk.DoubleVar(value=12500.50)
+        ttk.Entry(left_col, textvariable=self.legacy_amount_var, width=15).pack(anchor=tk.W, pady=(2, 10))
+
+        # Fuzzing checkboxes
+        ttk.Label(left_col, text="Protocol Mutation / Fuzzing:", font=("Segoe UI", 9, "bold")).pack(anchor=tk.W, pady=(2, 2))
+        self.fuzz_delim_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(left_col, text="Delimiter Swapping", variable=self.fuzz_delim_var).pack(anchor=tk.W)
+        self.fuzz_env_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(left_col, text="Envelope Truncation", variable=self.fuzz_env_var).pack(anchor=tk.W)
+        self.fuzz_seg_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(left_col, text="Segment Count Desync", variable=self.fuzz_seg_var).pack(anchor=tk.W)
+        self.fuzz_buf_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(left_col, text="Buffer Overflow", variable=self.fuzz_buf_var).pack(anchor=tk.W)
+        self.fuzz_sign_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(left_col, text="COMP-3 Sign Corruption", variable=self.fuzz_sign_var).pack(anchor=tk.W)
+        self.fuzz_hash_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(left_col, text="ACH Hash Total Desync", variable=self.fuzz_hash_var).pack(anchor=tk.W)
+        self.fuzz_width_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(left_col, text="Fixed-Width Overflow", variable=self.fuzz_width_var).pack(anchor=tk.W)
+
+        self.btn_gen_legacy = tk.Button(
+            left_col,
+            text="⚡ Serialize & Fuzz Stream",
+            bg="#0284c7",
+            fg="#ffffff",
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            padx=10,
+            pady=6,
+            cursor="hand2",
+            command=self._start_legacy_protocol_thread,
+        )
+        self.btn_gen_legacy.pack(fill=tk.X, pady=(10, 4))
+
+        self.btn_save_legacy = ttk.Button(
+            left_col,
+            text="💾 Save Payload to File...",
+            command=self._save_legacy_file,
+        )
+        self.btn_save_legacy.pack(fill=tk.X, pady=(2, 4))
+
+        self.lbl_legacy_status = ttk.Label(left_col, text="Legacy engine idle.", style="Muted.TLabel")
+        self.lbl_legacy_status.pack(anchor=tk.W, pady=(4, 0))
+
+        # Right Column: Output
+        self.txt_legacy_results = tk.Text(right_col, wrap=tk.NONE, font=("Consolas", 9), relief="solid", bd=1)
+        self.txt_legacy_results.pack(fill=tk.BOTH, expand=True)
+        self.txt_legacy_results.insert(tk.END, "Click 'Serialize & Fuzz Stream' to generate legacy payload.")
+
+    def _start_legacy_protocol_thread(self):
+        proto = self.legacy_proto_var.get()
+        count = self.legacy_count_var.get()
+        amount = self.legacy_amount_var.get()
+
+        anoms = []
+        if self.fuzz_delim_var.get(): anoms.append("DELIMITER_CORRUPTION")
+        if self.fuzz_env_var.get(): anoms.append("ENVELOPE_TRUNCATION")
+        if self.fuzz_seg_var.get(): anoms.append("SEGMENT_COUNT_DESYNC")
+        if self.fuzz_buf_var.get(): anoms.append("BUFFER_OVERFLOW")
+        if self.fuzz_sign_var.get(): anoms.append("EBCDIC_SIGN_CORRUPTION")
+        if self.fuzz_hash_var.get(): anoms.append("HASH_TOTAL_DESYNC")
+        if self.fuzz_width_var.get(): anoms.append("FIXED_WIDTH_OVERFLOW")
+
+        self.btn_gen_legacy.config(state=tk.DISABLED)
+        self.lbl_legacy_status.config(text="Serializing protocol stream...")
+
+        def _worker():
+            try:
+                res = self.state.run_legacy_export(
+                    protocol=proto,
+                    count=count,
+                    amount=amount,
+                    anomalies=anoms,
+                )
+                self.root.after(0, lambda: self._on_legacy_protocol_completed(res))
+            except Exception as e:
+                err = str(e)
+                self.root.after(0, lambda: self._on_legacy_protocol_error(err))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_legacy_protocol_completed(self, data: Dict[str, Any]):
+        self.btn_gen_legacy.config(state=tk.NORMAL)
+        self.lbl_legacy_status.config(text=f"Generated {data.get('byte_size')} bytes ({data.get('record_count')} records).")
+        self.txt_legacy_results.delete("1.0", tk.END)
+
+        header = f"# PROTOCOL: {data.get('protocol')} | BYTES: {data.get('byte_size')} | ENCODING: {data.get('encoding')} | ANOMALIES: {data.get('anomalies')}\n"
+        self.txt_legacy_results.insert(tk.END, header + ("=" * 80) + "\n" + data.get("preview", ""))
+        self._last_legacy_data = data
+
+    def _on_legacy_protocol_error(self, err: str):
+        self.btn_gen_legacy.config(state=tk.NORMAL)
+        self.lbl_legacy_status.config(text="Serialization failed.")
+        messagebox.showerror("Legacy Protocol Error", f"Failed to serialize stream:\n{err}")
+
+    def _save_legacy_file(self):
+        if not hasattr(self, "_last_legacy_data") or not self._last_legacy_data:
+            messagebox.showinfo("Export Notice", "Please generate a legacy stream first.")
+            return
+        proto = self._last_legacy_data.get("protocol", "legacy").lower()
+        dest = filedialog.asksaveasfilename(
+            title="Save Protocol Stream",
+            defaultextension=".txt",
+            initialfile=f"export_{proto}.txt",
+        )
+        if dest:
+            with open(dest, "w", encoding="utf-8") as f:
+                f.write(self._last_legacy_data.get("preview", ""))
+            messagebox.showinfo("Export Successful", f"Saved to:\n{dest}")
 
     def _initial_load(self):
-        """Initial background pre-population so app starts ready."""
-        try:
-            summary = self.state.generate(count=500, anomaly_rate=0.05, seed=42)
-            self._on_generation_completed(summary)
-        except Exception:
-            pass
+        """Initial background pre-population so app starts ready without freezing UI."""
+        def _worker():
+            try:
+                summary = self.state.generate(count=500, anomaly_rate=0.05, seed=42)
+                self.root.after(0, lambda: self._on_generation_completed(summary))
+            except Exception:
+                pass
+
+        threading.Thread(target=_worker, daemon=True).start()
 
 
 def start_desktop_gui():

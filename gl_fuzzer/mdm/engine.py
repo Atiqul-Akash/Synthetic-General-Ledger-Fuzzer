@@ -77,15 +77,19 @@ class MasterDataManager:
 
     def tamper_vendor_bank(self, vendor_id: str = "VEND_002", tamper_date: str = "2026-04-14") -> Tuple[VendorMaster, MDMAnomalyRecord]:
         """Modifies a vendor's banking routing immediately prior to a payment."""
-        vendor = self.vendors[vendor_id]
+        vendor = self.vendors.get(vendor_id) or (next(iter(self.vendors.values())) if self.vendors else None)
+        if not vendor:
+            raise ValueError(f"Vendor {vendor_id} not found and registry is empty")
         tampered, record = BankRoutingTamperingMutator.mutate(vendor, tamper_date, self.rng)
-        self.vendors[vendor_id] = tampered
+        self.vendors[vendor.vendor_id] = tampered
         self.anomalies.append(record)
         return tampered, record
 
     def inject_employee_collusion(self, employee_id: str = "EMP_001") -> Tuple[VendorMaster, MDMAnomalyRecord]:
         """Creates a vendor record colluding with an employee's personal bank account."""
-        employee = self.employees[employee_id]
+        employee = self.employees.get(employee_id) or (next(iter(self.employees.values())) if self.employees else None)
+        if not employee:
+            raise ValueError(f"Employee {employee_id} not found and registry is empty")
         collude_vendor, record = EmployeeVendorCollusionMutator.mutate(employee, self.rng)
         self.vendors[collude_vendor.vendor_id] = collude_vendor
         self.anomalies.append(record)

@@ -35,6 +35,7 @@ demo_output/
 desktop_gui_output/
 web_gui_output/
 prod_output/
+gl_output/
 test_artifacts*/
 
 # IDE & Editor

@@ -25,21 +25,28 @@ class ForensicAuditEvaluator:
 
         for entry in entries:
             for line in entry.lines:
-                amt_str = f"{line.amount:.2f}".lstrip("0").lstrip(".")
-                if amt_str:
-                    first_char = amt_str[0]
-                    if first_char in "123456789":
-                        digit = int(first_char)
+                amt = abs(line.amount)
+                if amt == Decimal("0.00"):
+                    continue
+                clean_digits = f"{amt:.4f}".replace(".", "").lstrip("0")
+                if clean_digits:
+                    digit = int(clean_digits[0])
+                    if 1 <= digit <= 9:
                         digit_counts[digit] += 1
                         total_digits += 1
 
         if total_digits < 10:
             return {
-                "total_observations": total_digits,
                 "status": "INSUFFICIENT_DATA",
+                "total_observations": total_digits,
                 "p_value": 1.0,
                 "chi2_stat": 0.0,
+                "chi2_statistic": 0.0,
+                "is_anomalous": False,
+                "empirical_percentages": {},
+                "theoretical_percentages": {},
                 "digit_distribution": {},
+                "forensic_conclusion": "INSUFFICIENT_DATA (Fewer than 10 observations)",
             }
 
         observed_counts = np.array([digit_counts[d] for d in range(1, 10)], dtype=np.float64)
@@ -62,7 +69,9 @@ class ForensicAuditEvaluator:
         is_anomalous = bool(chi2_res.pvalue < 0.05)
 
         return {
+            "status": "SUCCESS",
             "total_observations": total_digits,
+            "chi2_stat": round(float(chi2_res.statistic), 4),
             "chi2_statistic": round(float(chi2_res.statistic), 4),
             "p_value": float(chi2_res.pvalue),
             "is_anomalous": is_anomalous,
@@ -157,15 +166,26 @@ class ForensicAuditEvaluator:
                 hour = 12
 
             try:
-                d = datetime.fromisoformat(entry.posting_date).date()
+                raw_d = str(entry.posting_date).split("T")[0]
+                if "-" in raw_d:
+                    parts = [int(x) for x in raw_d.split("-")]
+                    from datetime import date as dt_date
+                    d = dt_date(parts[0], parts[1], parts[2])
+                else:
+                    d = datetime.fromisoformat(entry.posting_date).date()
                 is_weekend = d.weekday() >= 5
             except Exception:
                 is_weekend = False
 
             is_deep_night = (2 <= hour <= 4)
             is_manual = entry.document_type in (DocumentType.MJE, DocumentType.SA)
+            is_dormant_or_override = (
+                "DORMANT" in (entry.created_by or "").upper()
+                or "GHOST" in (entry.header_text or "").upper()
+                or "OVERRIDE" in (entry.header_text or "").upper()
+            )
 
-            if (is_deep_night or is_weekend) and is_manual:
+            if ((is_deep_night or is_weekend) and is_manual) or is_dormant_or_override:
                 flagged_entries.append({
                     "entry_id": entry.entry_id,
                     "document_number": entry.document_number,

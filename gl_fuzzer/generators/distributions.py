@@ -93,6 +93,8 @@ class BusinessCalendar:
         end_date: date = date(2026, 12, 31),
         rng: Optional[np.random.Generator] = None,
     ):
+        if start_date > end_date:
+            raise ValueError(f"start_date ({start_date}) must be <= end_date ({end_date})")
         self.start_date = start_date
         self.end_date = end_date
         self.rng = rng if rng is not None else np.random.default_rng()
@@ -156,8 +158,12 @@ class BusinessCalendar:
     def off_hours_time(self) -> time:
         """Off-hours anomaly window: 02:00:00 to 04:30:00."""
         hour = int(self.rng.integers(2, 5))
-        minute = int(self.rng.integers(0, 31 if hour == 4 else 60))
-        second = int(self.rng.integers(0, 60))
+        if hour == 4:
+            minute = int(self.rng.integers(0, 31))
+            second = 0 if minute == 30 else int(self.rng.integers(0, 60))
+        else:
+            minute = int(self.rng.integers(0, 60))
+            second = int(self.rng.integers(0, 60))
         return time(hour, minute, second)
 
     def generate_timestamp(self, is_off_hours: bool = False, is_weekend: bool = False) -> datetime:

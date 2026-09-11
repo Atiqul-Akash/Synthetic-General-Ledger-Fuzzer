@@ -95,6 +95,23 @@ class TestGLAppState(unittest.TestCase):
         self.assertIn("GGB0", res["code_or_rule"])
         self.assertGreater(len(res["compensating_controls"]), 0)
 
+    def test_state_agent_dialogue(self):
+        res = self.state.run_agent_dialogue(persona="EXECUTIVE_CFO", voucher="VCH-1234", amount="$99,000.00")
+        self.assertEqual(res["target_voucher_id"], "VCH-1234")
+        self.assertGreaterEqual(len(res["turns"]), 4)
+        self.assertIn("eml_download", res)
+
+    def test_state_legacy_export(self):
+        res_x12 = self.state.run_legacy_export(protocol="ANSI_X12_810", count=2, amount=1500.00)
+        self.assertEqual(res_x12["protocol"], "ANSI_X12_810")
+        self.assertFalse(res_x12["is_binary"])
+        self.assertIn("BIG*", res_x12["preview"])
+
+        res_nacha = self.state.run_legacy_export(protocol="NACHA_ACH", count=3, amount=500.00)
+        self.assertEqual(res_nacha["protocol"], "NACHA_ACH")
+        self.assertEqual(res_nacha["encoding"], "ascii")
+
+
 
 
 
@@ -231,7 +248,48 @@ class TestDesktopGUI(unittest.TestCase):
         self.assertIn("PATCH-001", rem_text)
         self.assertIn("SOX-AP-09", rem_text)
 
+    def test_desktop_gui_agent_and_legacy_tabs(self):
+        # Verify Tab 7 & Tab 8 widgets exist
+        self.assertIsNotNone(self.app.tab_agents)
+        self.assertIsNotNone(self.app.tab_legacy)
+
+        fake_thread = {
+            "thread_id": "SET-9999",
+            "campaign_id": "CAMP-TEST",
+            "persona": "EXECUTIVE_CFO",
+            "pretext_scenario": "PROJECT_APOLLO",
+            "subject": "Executive Authorization Override",
+            "target_voucher_id": "VCH-8888",
+            "audit_notes": "Bypassed SOX dual approval",
+            "turns": [
+                {
+                    "turn_index": 1,
+                    "speaker_role": "FRAUD_AGENT",
+                    "speaker_name": "Arthur (CFO)",
+                    "message_body": "Execute wire immediately",
+                    "persuasion_tactic": "URGENCY",
+                }
+            ],
+        }
+        self.app._on_agent_dialogue_completed(fake_thread)
+        agent_txt = self.app.txt_dialogue_results.get("1.0", tk.END)
+        self.assertIn("SET-9999", agent_txt)
+        self.assertIn("Executive Authorization Override", agent_txt)
+
+        fake_legacy = {
+            "protocol": "ANSI_X12_810",
+            "byte_size": 350,
+            "record_count": 12,
+            "encoding": "utf-8",
+            "anomalies": ["DELIMITER_CORRUPTION"],
+            "preview": "ISA*00*...BIG*20260414*INV01~",
+        }
+        self.app._on_legacy_protocol_completed(fake_legacy)
+        legacy_txt = self.app.txt_legacy_results.get("1.0", tk.END)
+        self.assertIn("ANSI_X12_810", legacy_txt)
+        self.assertIn("DELIMITER_CORRUPTION", legacy_txt)
 
 
 if __name__ == "__main__":
     unittest.main()
+

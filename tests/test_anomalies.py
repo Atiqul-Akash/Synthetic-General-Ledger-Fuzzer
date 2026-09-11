@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 from gl_fuzzer.models.coa import ChartOfAccounts
+from gl_fuzzer.models.journal import DocumentType
 from gl_fuzzer.models.manifest import AnomalyType
 from gl_fuzzer.generators.distributions import BusinessCalendar
 from gl_fuzzer.generators.base_engine import BaseSynthesisEngine
@@ -73,7 +74,7 @@ def test_benford_skew_mutator(base_batch, mutation_context):
     assert rec.anomaly_type == AnomalyType.BENFORD_SKEW
     entry = next(e for e in base_batch.entries if e.entry_id == rec.affected_entry_ids[0])
     assert entry.is_balanced
-    first_digit = int(str(entry.lines[0].amount).lstrip("0").lstrip(".")[0])
+    first_digit = int(str(abs(entry.lines[0].amount)).replace(".", "").lstrip("0")[0])
     assert first_digit in (1, 2, 3, 4, 5, 6, 7, 8, 9)
 
 
@@ -88,7 +89,8 @@ def test_anomalous_pairings_mutator(base_batch, mutation_context):
     assert entry.is_balanced
     debit_codes = [l.account_code for l in entry.lines if l.debit_credit.value == "DEBIT"]
     credit_codes = [l.account_code for l in entry.lines if l.debit_credit.value == "CREDIT"]
-    assert len(debit_codes) > 0 and len(credit_codes) > 0
+    valid_pairs = [("10100", "69000"), ("99999", "10100"), ("64000", "17000")]
+    assert any((d, c) in valid_pairs for d in debit_codes for c in credit_codes)
 
 
 def test_circular_round_tripping_mutator(base_batch, mutation_context):
@@ -101,10 +103,12 @@ def test_circular_round_tripping_mutator(base_batch, mutation_context):
     # 3 hops * 2 entries per hop (sender + receiver) = 6 entries
     assert len(rec.affected_entry_ids) == 6
 
-    # Verify each entry is individually balanced
-    for eid in rec.affected_entry_ids:
-        entry = next(e for e in base_batch.entries if e.entry_id == eid)
+    # Verify each entry is individually balanced and represents intercompany transfers
+    cycle_entries = [e for e in base_batch.entries if e.entry_id in rec.affected_entry_ids]
+    assert len(cycle_entries) == 6
+    for entry in cycle_entries:
         assert entry.is_balanced
+        assert entry.document_type == DocumentType.IC
 
 
 def test_full_pipeline_preserves_double_entry():

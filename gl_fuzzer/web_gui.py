@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import http.server
 import io
@@ -126,7 +126,7 @@ class GLAppState:
 
             self.manifest = GroundTruthManifest(
                 dataset_id=batch_id,
-                generated_at=datetime.now().isoformat(),
+                generated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 seed=seed,
                 total_batches=1,
                 total_entries=len(self.batch.entries),
@@ -321,6 +321,138 @@ class GLAppState:
             })
             return patch.model_dump(mode="json")
 
+    def run_agent_dialogue(
+        self,
+        persona: str = "EXECUTIVE_CFO",
+        scenario: str = "PROJECT_APOLLO",
+        voucher: str = "VCH-2026-9081",
+        amount: str = "$125,000.00",
+        vendor: str = "Apex Strategic Advisory Partners",
+        custom_objections: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Generates conversational social engineering thread via Generative LLM Fraud Agent."""
+        with self._lock:
+            from gl_fuzzer.agents import (
+                AgentPersona,
+                ExecutivePretextAgent,
+                CollusiveVendorAgent,
+                AuditorDeceptionAgent,
+                MultiTurnDialogueSimulator,
+            )
+            from gl_fuzzer.documents.email_generator import EmailThreadGenerator
+
+            try:
+                p_enum = AgentPersona(persona.upper())
+            except ValueError:
+                p_enum = AgentPersona.EXECUTIVE_CFO
+
+            sim = MultiTurnDialogueSimulator()
+            thread = sim.simulate(
+                persona=p_enum,
+                scenario=scenario,
+                target_voucher_id=voucher,
+                custom_objections=custom_objections,
+            )
+
+            # Auto-export .eml file for download
+            eml_path = self.output_dir / f"{thread.thread_id}.eml"
+            EmailThreadGenerator.generate_from_social_engineering_thread(eml_path, thread)
+            self.exported_files[f"{thread.thread_id}.eml"] = eml_path
+
+            res = thread.model_dump(mode="json")
+            res["eml_download"] = f"/api/download/{thread.thread_id}.eml"
+            return res
+
+    def run_legacy_export(
+        self,
+        protocol: str = "ANSI_X12_810",
+        count: int = 5,
+        amount: float = 12500.50,
+        anomalies: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Generates valid or fuzzed legacy EDI / Mainframe / Banking stream."""
+        with self._lock:
+            from gl_fuzzer.legacy_protocols import (
+                LegacyProtocolType,
+                ProtocolFuzzAnomaly,
+                EDIEngine,
+                MainframeEngine,
+            )
+
+            try:
+                proto_enum = LegacyProtocolType(protocol.upper())
+            except ValueError:
+                proto_enum = LegacyProtocolType.ANSI_X12_810
+
+            applied_anoms = []
+            if anomalies:
+                for a in anomalies:
+                    try:
+                        applied_anoms.append(ProtocolFuzzAnomaly(a.upper()))
+                    except ValueError:
+                        pass
+
+            if proto_enum in (
+                LegacyProtocolType.ANSI_X12_810,
+                LegacyProtocolType.ANSI_X12_850,
+                LegacyProtocolType.ANSI_X12_856,
+                LegacyProtocolType.EDIFACT_INVOIC,
+                LegacyProtocolType.EDIFACT_ORDERS,
+            ):
+                result = EDIEngine.generate_edi_payload(
+                    protocol=proto_enum,
+                    document_id="DOC-2026-9001",
+                    date_str="2026-04-14",
+                    sender_id="SENDER01",
+                    receiver_id="RECEIVER01",
+                    amount=Decimal(str(amount)),
+                    anomalies=applied_anoms,
+                )
+                ext = ".edi"
+            else:
+                mock_records = []
+                for i in range(1, count + 1):
+                    mock_records.append({
+                        "doc_id": f"VCH{i:05d}",
+                        "date": "20260414",
+                        "account": f"1010{i:04d}",
+                        "dr_cr": "CR" if i % 2 == 0 else "DR",
+                        "amount": str(amount),
+                        "routing": "021000021",
+                        "description": f"EXPEDITED SETTLEMENT LINE {i}",
+                        "vendor_id": f"VEND{i:04d}",
+                        "name": "NORTHERN INDUSTRIAL CORP",
+                    })
+                result = MainframeEngine.generate_payload(
+                    protocol=proto_enum,
+                    records=mock_records,
+                    anomalies=applied_anoms,
+                )
+                ext = ".bin" if result.is_binary else ".txt"
+
+            out_filename = f"legacy_payload_{proto_enum.value.lower()}{ext}"
+            file_path = self.output_dir / out_filename
+            if result.is_binary:
+                file_path.write_bytes(result.raw_payload)
+                preview_text = f"[Binary Stream: {result.byte_size} bytes in {result.encoding} - Hex: {result.raw_payload[:64].hex()}]"
+            else:
+                file_path.write_text(result.raw_payload, encoding=result.encoding)
+                preview_text = result.raw_payload[:3000]
+
+            self.exported_files[out_filename] = file_path
+
+            return {
+                "protocol": proto_enum.value,
+                "byte_size": result.byte_size,
+                "record_count": result.record_count,
+                "is_binary": result.is_binary,
+                "encoding": result.encoding,
+                "anomalies": [a.value for a in result.applied_anomalies],
+                "preview": preview_text,
+                "download_url": f"/api/download/{out_filename}",
+            }
+
+
 
 
 
@@ -353,9 +485,19 @@ class GLWebRequestHandler(http.server.BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
         try:
+            raw_len = self.headers.get("Content-Length", 0)
+            content_length = int(raw_len)
+        except (ValueError, TypeError):
+            content_length = 0
+
+        if content_length > 10 * 1024 * 1024:
+            self.send_error(413, "Payload Too Large")
+            return
+
+        try:
+            raw_body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+            body = raw_body.decode("utf-8", errors="replace")
             payload = json.loads(body)
         except Exception:
             payload = {}
@@ -411,8 +553,27 @@ class GLWebRequestHandler(http.server.BaseHTTPRequestHandler):
                 rule_name = str(payload.get("rule_name", "RULE_WHT_EVASION"))
                 remediation_res = state.generate_remediation(rule_name=rule_name)
                 self._send_json(remediation_res)
+            elif path == "/api/agent-dialogue":
+                agent_res = state.run_agent_dialogue(
+                    persona=str(payload.get("persona", "EXECUTIVE_CFO")),
+                    scenario=str(payload.get("scenario", "PROJECT_APOLLO")),
+                    voucher=str(payload.get("voucher", "VCH-2026-9081")),
+                    amount=str(payload.get("amount", "$125,000.00")),
+                    vendor=str(payload.get("vendor", "Apex Strategic Advisory Partners")),
+                    custom_objections=payload.get("custom_objections"),
+                )
+                self._send_json(agent_res)
+            elif path in ("/api/legacy-export", "/api/legacy-fuzz"):
+                legacy_res = state.run_legacy_export(
+                    protocol=str(payload.get("protocol", "ANSI_X12_810")),
+                    count=int(payload.get("count", 5)),
+                    amount=float(payload.get("amount", 12500.50)),
+                    anomalies=payload.get("anomalies"),
+                )
+                self._send_json(legacy_res)
             else:
                 self.send_error(404, "Unknown API endpoint")
+
 
         except Exception as e:
             self._send_json({"error": str(e), "status": "ERROR"}, status=500)
@@ -683,17 +844,24 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     <!-- Tabbed Navigation Panels -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <!-- Tabs Header -->
-      <div class="border-b border-slate-200 px-6 flex space-x-8">
-        <button id="tab-btn-tx" onclick="switchTab('tx')" class="py-4 text-sm font-medium text-slate-500 hover:text-slate-700 tab-active">
+      <div class="border-b border-slate-200 px-6 flex space-x-6 overflow-x-auto">
+        <button id="tab-btn-tx" onclick="switchTab('tx')" class="py-4 text-sm font-medium text-slate-500 hover:text-slate-700 tab-active whitespace-nowrap">
           Transaction Explorer
         </button>
-        <button id="tab-btn-audit" onclick="switchTab('audit')" class="py-4 text-sm font-medium text-slate-500 hover:text-slate-700">
+        <button id="tab-btn-audit" onclick="switchTab('audit')" class="py-4 text-sm font-medium text-slate-500 hover:text-slate-700 whitespace-nowrap">
           SOX 404 Forensic Screening
         </button>
-        <button id="tab-btn-export" onclick="switchTab('export')" class="py-4 text-sm font-medium text-slate-500 hover:text-slate-700">
+        <button id="tab-btn-agent" onclick="switchTab('agent')" class="py-4 text-sm font-medium text-slate-500 hover:text-slate-700 whitespace-nowrap">
+          LLM Fraud Agents Studio
+        </button>
+        <button id="tab-btn-legacy" onclick="switchTab('legacy')" class="py-4 text-sm font-medium text-slate-500 hover:text-slate-700 whitespace-nowrap">
+          Legacy Mainframe & EDI
+        </button>
+        <button id="tab-btn-export" onclick="switchTab('export')" class="py-4 text-sm font-medium text-slate-500 hover:text-slate-700 whitespace-nowrap">
           Downloads & Artifacts
         </button>
       </div>
+
 
       <!-- Tab Content 1: Transaction Explorer -->
       <div id="tab-content-tx" class="p-6">
@@ -909,6 +1077,126 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           </div>
         </div>
       </div>
+
+      <!-- Tab Content: LLM Fraud Agents Studio -->
+      <div id="tab-content-agent" class="p-6 hidden space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-100 gap-2">
+          <div>
+            <h4 class="text-sm font-bold text-slate-900">Autonomous Generative LLM Social Engineering Fraud Studio</h4>
+            <p class="text-xs text-slate-500">Simulate multi-turn psychological coercion, pretexting, and objection handling accompanying financial crimes.</p>
+          </div>
+          <span class="px-2.5 py-1 bg-purple-100 text-purple-800 font-semibold text-xs rounded-lg border border-purple-200">
+            Zero-Dependency Heuristic Generative Engine Active
+          </span>
+        </div>
+
+        <!-- Controls -->
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl text-xs border border-slate-200">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Agent Persona</label>
+            <select id="agent-persona" class="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs">
+              <option value="EXECUTIVE_CFO">Executive CFO (CEO Wire Bypass / Project Apollo)</option>
+              <option value="COLLUSIVE_VENDOR">Collusive Vendor (Bank Account Diversion)</option>
+              <option value="AUDITOR_DECEPTOR">Auditor Deceptor (Suspense GAAP Obfuscation)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Target Voucher ID</label>
+            <input type="text" id="agent-voucher" value="VCH-2026-9081" class="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-mono">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Disputed Amount</label>
+            <input type="text" id="agent-amount" value="$125,000.00" class="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Vendor / Counterparty</label>
+            <input type="text" id="agent-vendor" value="Apex Strategic Advisory Partners" class="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs">
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-3">
+          <button onclick="generateAgentDialogue()" id="agent-gen-btn" class="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow transition flex items-center">
+            <span id="agent-spinner" class="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 hidden"></span>
+            Generate Social Engineering Thread
+          </button>
+        </div>
+
+        <!-- Dialogue Transcript Container -->
+        <div id="agent-dialogue-box" class="border border-slate-200 rounded-xl p-4 bg-slate-900 text-slate-100 min-h-[300px] space-y-4">
+          <p class="text-xs text-slate-400 text-center py-10">Configure parameters above and click "Generate Social Engineering Thread" to observe autonomous multi-turn adversarial dialogue.</p>
+        </div>
+      </div>
+
+      <!-- Tab Content: Legacy Mainframe & EDI Protocol Studio -->
+      <div id="tab-content-legacy" class="p-6 hidden space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-100 gap-2">
+          <div>
+            <h4 class="text-sm font-bold text-slate-900">Legacy Enterprise Mainframe, Banking & Supply Chain EDI Studio</h4>
+            <p class="text-xs text-slate-500">Serialize and fuzz transactions into ANSI X12, UN/EDIFACT, IBM COBOL fixed-width, EBCDIC binary, NACHA ACH, and SWIFT MT940.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl text-xs border border-slate-200">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Legacy Protocol Target</label>
+            <select id="legacy-proto" class="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs">
+              <option value="ANSI_X12_810">ANSI X12 810 (Commercial Invoice)</option>
+              <option value="ANSI_X12_850">ANSI X12 850 (Purchase Order)</option>
+              <option value="ANSI_X12_856">ANSI X12 856 (Ship Notice / ASN)</option>
+              <option value="EDIFACT_INVOIC">UN/EDIFACT INVOIC (D.96A Commercial Invoice)</option>
+              <option value="EDIFACT_ORDERS">UN/EDIFACT ORDERS (Purchase Order)</option>
+              <option value="COBOL_COPYBOOK_80">IBM COBOL 80-Column Punched Card Layout</option>
+              <option value="COBOL_COPYBOOK_132">IBM COBOL 132-Column Line Printer Report</option>
+              <option value="EBCDIC_BINARY">IBM Mainframe EBCDIC CP037 Binary Dump (COMP-3)</option>
+              <option value="NACHA_ACH">NACHA ACH (US Banking 94-Char Fixed-Width Batch)</option>
+              <option value="BAI2">BAI2 Cash Management Statement</option>
+              <option value="SWIFT_MT940">SWIFT MT940 Customer Statement Message</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Record Count / Items</label>
+            <input type="number" id="legacy-count" value="5" min="1" max="100" class="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Transaction Dollar Amount</label>
+            <input type="number" id="legacy-amount" value="12500.50" step="0.01" class="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs">
+          </div>
+        </div>
+
+        <!-- Protocol Fuzzing Anomalies Multi-Select -->
+        <div class="bg-amber-50/50 p-4 rounded-xl border border-amber-200">
+          <span class="block text-xs font-bold text-amber-900 mb-2">Inject Protocol-Level Fuzzing Corruptions:</span>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <label class="flex items-center space-x-2"><input type="checkbox" id="fuzz-delim" value="DELIMITER_CORRUPTION" class="rounded text-blue-600"> <span>Delimiter Corruption</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="fuzz-env" value="ENVELOPE_TRUNCATION" class="rounded text-blue-600"> <span>Envelope Truncation</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="fuzz-seg" value="SEGMENT_COUNT_DESYNC" class="rounded text-blue-600"> <span>Segment Count Desync</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="fuzz-buf" value="BUFFER_OVERFLOW" class="rounded text-blue-600"> <span>Buffer Overflow</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="fuzz-sign" value="EBCDIC_SIGN_CORRUPTION" class="rounded text-blue-600"> <span>COMP-3 Sign Corruption</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="fuzz-hash" value="HASH_TOTAL_DESYNC" class="rounded text-blue-600"> <span>ACH Hash Total Desync</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="fuzz-width" value="FIXED_WIDTH_OVERFLOW" class="rounded text-blue-600"> <span>Fixed-Width Line Overflow</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="fuzz-null" value="NULL_BYTE_INJECTION" class="rounded text-blue-600"> <span>Null Byte Injection</span></label>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <div id="legacy-stats" class="text-xs text-slate-500 font-mono"></div>
+          <button onclick="executeLegacyProtocol()" id="legacy-gen-btn" class="px-5 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white text-xs font-bold rounded-xl shadow transition flex items-center">
+            <span id="legacy-spinner" class="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 hidden"></span>
+            Serialize & Fuzz Protocol Stream
+          </button>
+        </div>
+
+        <!-- Raw Payload Preview Box -->
+        <div class="space-y-2">
+          <div class="flex justify-between items-center text-xs">
+            <span class="font-bold text-slate-700">Raw Serialized Stream Output:</span>
+            <a id="legacy-download-link" href="#" class="text-blue-600 hover:underline font-semibold hidden">Download Raw Stream File</a>
+          </div>
+          <pre id="legacy-preview-box" class="border border-slate-200 rounded-xl p-4 bg-slate-950 text-emerald-400 font-mono text-xs overflow-x-auto max-h-96 whitespace-pre">Click "Serialize & Fuzz Protocol Stream" to view legacy formatted payload.</pre>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Footer with Credits -->
@@ -1044,10 +1332,20 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       filterTransactions();
     }
 
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function filterTransactions() {
       if (!currentData || !currentData.sample_entries) return;
 
-      const q = document.getElementById('tx-search').value.toLowerCase();
+      const q = (document.getElementById('tx-search').value || '').toLowerCase().trim();
       const cycle = document.getElementById('cycle-filter').value;
       const status = document.getElementById('status-filter').value;
 
@@ -1059,9 +1357,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         if (status === 'CLEAN' && e.is_anomaly) return false;
         if (status === 'ANOMALOUS' && !e.is_anomaly) return false;
         if (q) {
-          const matchDoc = e.document_number.toLowerCase().includes(q);
-          const matchHead = e.header_text.toLowerCase().includes(q);
-          const matchLines = e.lines.some(l => l.account_code.includes(q) || l.account_name.toLowerCase().includes(q) || l.line_text.toLowerCase().includes(q) || l.vendor_id.toLowerCase().includes(q) || l.customer_id.toLowerCase().includes(q));
+          const matchDoc = (e.document_number || '').toLowerCase().includes(q);
+          const matchHead = (e.header_text || '').toLowerCase().includes(q);
+          const matchLines = (e.lines || []).some(l => 
+            (l.account_code || '').toLowerCase().includes(q) || 
+            (l.account_name || '').toLowerCase().includes(q) || 
+            (l.line_text || '').toLowerCase().includes(q) || 
+            (l.vendor_id || '').toLowerCase().includes(q) || 
+            (l.customer_id || '').toLowerCase().includes(q)
+          );
           if (!matchDoc && !matchHead && !matchLines) return false;
         }
         return true;
@@ -1070,21 +1374,22 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       filtered.forEach((e, idx) => {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 transition";
+        const anomCount = (e.anomaly_ids || []).length;
         const statusBadge = e.is_anomaly
-          ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Anomaly (${e.anomaly_ids.length})</span>`
+          ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Anomaly (${anomCount})</span>`
           : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Clean</span>`;
 
         tr.innerHTML = `
-          <td class="px-3.5 py-2.5 font-semibold text-slate-800">${e.document_number}</td>
-          <td class="px-3.5 py-2.5"><span class="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-mono">${e.document_type}</span></td>
-          <td class="px-3.5 py-2.5 text-slate-600">${e.posting_date} <span class="text-slate-400 text-[10px]">${e.entry_time}</span></td>
-          <td class="px-3.5 py-2.5"><span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md font-semibold text-[10px]">${e.business_cycle}</span></td>
-          <td class="px-3.5 py-2.5 text-slate-700 truncate max-w-xs">${e.header_text}</td>
-          <td class="px-3.5 py-2.5 text-right font-mono font-medium text-emerald-700">$${e.total_debits}</td>
-          <td class="px-3.5 py-2.5 text-right font-mono font-medium text-emerald-700">$${e.total_credits}</td>
+          <td class="px-3.5 py-2.5 font-semibold text-slate-800">${escapeHtml(e.document_number)}</td>
+          <td class="px-3.5 py-2.5"><span class="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-mono">${escapeHtml(e.document_type)}</span></td>
+          <td class="px-3.5 py-2.5 text-slate-600">${escapeHtml(e.posting_date)} <span class="text-slate-400 text-[10px]">${escapeHtml(e.entry_time)}</span></td>
+          <td class="px-3.5 py-2.5"><span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md font-semibold text-[10px]">${escapeHtml(e.business_cycle)}</span></td>
+          <td class="px-3.5 py-2.5 text-slate-700 truncate max-w-xs">${escapeHtml(e.header_text)}</td>
+          <td class="px-3.5 py-2.5 text-right font-mono font-medium text-emerald-700">$${escapeHtml(e.total_debits)}</td>
+          <td class="px-3.5 py-2.5 text-right font-mono font-medium text-emerald-700">$${escapeHtml(e.total_credits)}</td>
           <td class="px-3.5 py-2.5 text-center">${statusBadge}</td>
           <td class="px-3.5 py-2.5 text-center">
-            <button onclick="inspectEntry('${e.entry_id}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition">
+            <button onclick="inspectEntry('${escapeHtml(e.entry_id)}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition">
               Inspect
             </button>
           </td>
@@ -1108,23 +1413,25 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
       const tbody = document.getElementById('modal-lines-body');
       tbody.innerHTML = '';
-      entry.lines.forEach(l => {
+      (entry.lines || []).forEach(l => {
         const tr = document.createElement('tr');
         const dcColor = l.debit_credit === 'DEBIT' ? 'text-blue-700 bg-blue-50' : 'text-purple-700 bg-purple-50';
+        const party = l.vendor_id ? 'Vendor: ' + l.vendor_id : (l.customer_id ? 'Cust: ' + l.customer_id : (l.trading_partner ? 'Partner: ' + l.trading_partner : (l.line_text || '')));
         tr.innerHTML = `
-          <td class="px-3 py-2 text-slate-400">${l.line_number}</td>
-          <td class="px-3 py-2 font-mono text-slate-600">${l.posting_key}</td>
-          <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded font-bold text-[10px] ${dcColor}">${l.debit_credit}</span></td>
-          <td class="px-3 py-2 font-mono font-semibold text-slate-800">${l.account_code} <span class="font-normal text-slate-500">(${l.account_name})</span></td>
-          <td class="px-3 py-2 text-slate-600">${l.vendor_id ? 'Vendor: ' + l.vendor_id : (l.customer_id ? 'Cust: ' + l.customer_id : (l.trading_partner ? 'Partner: ' + l.trading_partner : l.line_text))}</td>
-          <td class="px-3 py-2 text-right font-mono font-bold text-slate-900">$${l.amount}</td>
+          <td class="px-3 py-2 text-slate-400">${escapeHtml(l.line_number)}</td>
+          <td class="px-3 py-2 font-mono text-slate-600">${escapeHtml(l.posting_key)}</td>
+          <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded font-bold text-[10px] ${dcColor}">${escapeHtml(l.debit_credit)}</span></td>
+          <td class="px-3 py-2 font-mono font-semibold text-slate-800">${escapeHtml(l.account_code)} <span class="font-normal text-slate-500">(${escapeHtml(l.account_name)})</span></td>
+          <td class="px-3 py-2 text-slate-600">${escapeHtml(party)}</td>
+          <td class="px-3 py-2 text-right font-mono font-bold text-slate-900">$${escapeHtml(l.amount)}</td>
         `;
         tbody.appendChild(tr);
       });
 
       const anomBox = document.getElementById('modal-anomaly-box');
       if (entry.is_anomaly) {
-        anomBox.innerHTML = `<span class="px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 font-semibold text-[11px] inline-flex items-center">⚠ Injected Anomaly Signal: ${entry.anomaly_ids.join(', ')}</span>`;
+        const joinedAnoms = escapeHtml((entry.anomaly_ids || []).join(', '));
+        anomBox.innerHTML = `<span class="px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 font-semibold text-[11px] inline-flex items-center">⚠ Injected Anomaly Signal: ${joinedAnoms}</span>`;
       } else {
         anomBox.innerHTML = `<span class="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-900 font-semibold text-[11px]">✓ Clean Baseline Journal Entry</span>`;
       }
@@ -1137,26 +1444,125 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     function switchTab(tabId) {
-      document.getElementById('tab-btn-tx').className = "py-4 text-sm font-medium text-slate-500 hover:text-slate-700";
-      document.getElementById('tab-btn-audit').className = "py-4 text-sm font-medium text-slate-500 hover:text-slate-700";
-      document.getElementById('tab-btn-export').className = "py-4 text-sm font-medium text-slate-500 hover:text-slate-700";
+      ['tx', 'audit', 'agent', 'legacy', 'export'].forEach(t => {
+        const btn = document.getElementById('tab-btn-' + t);
+        const panel = document.getElementById('tab-content-' + t);
+        if (btn) btn.className = "py-4 text-sm font-medium text-slate-500 hover:text-slate-700 whitespace-nowrap";
+        if (panel) panel.classList.add('hidden');
+      });
 
-      document.getElementById('tab-content-tx').classList.add('hidden');
-      document.getElementById('tab-content-audit').classList.add('hidden');
-      document.getElementById('tab-content-export').classList.add('hidden');
+      const activeBtn = document.getElementById('tab-btn-' + tabId);
+      const activePanel = document.getElementById('tab-content-' + tabId);
+      if (activeBtn) activeBtn.className = "py-4 text-sm font-medium tab-active whitespace-nowrap";
+      if (activePanel) activePanel.classList.remove('hidden');
 
-      if (tabId === 'tx') {
-        document.getElementById('tab-btn-tx').className = "py-4 text-sm font-medium tab-active";
-        document.getElementById('tab-content-tx').classList.remove('hidden');
-      } else if (tabId === 'audit') {
-        document.getElementById('tab-btn-audit').className = "py-4 text-sm font-medium tab-active";
-        document.getElementById('tab-content-audit').classList.remove('hidden');
+      if (tabId === 'audit') {
         triggerAudit();
-      } else if (tabId === 'export') {
-        document.getElementById('tab-btn-export').className = "py-4 text-sm font-medium tab-active";
-        document.getElementById('tab-content-export').classList.remove('hidden');
       }
     }
+
+    async function generateAgentDialogue() {
+      const btn = document.getElementById('agent-gen-btn');
+      const spinner = document.getElementById('agent-spinner');
+      const box = document.getElementById('agent-dialogue-box');
+
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+
+      const persona = document.getElementById('agent-persona').value;
+      const voucher = document.getElementById('agent-voucher').value;
+      const amount = document.getElementById('agent-amount').value;
+      const vendor = document.getElementById('agent-vendor').value;
+
+      try {
+        const res = await fetch('/api/agent-dialogue', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ persona, voucher, amount, vendor, scenario: 'APOLLO_OVERRIDE' })
+        });
+        const data = await res.json();
+
+        box.innerHTML = `
+          <div class="flex justify-between items-center pb-3 border-b border-slate-700 text-xs text-slate-300">
+            <div>
+              <span class="font-bold text-white">${data.subject}</span>
+              <span class="text-slate-400 ml-2">ID: ${data.thread_id}</span>
+            </div>
+            <a href="${data.eml_download}" class="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-semibold">
+              Download .EML Chain
+            </a>
+          </div>
+        `;
+
+        (data.turns || []).forEach(t => {
+          const isAgent = t.speaker_role === 'FRAUD_AGENT';
+          const cardBg = isAgent ? 'bg-purple-950/60 border-purple-800/80' : 'bg-slate-800/80 border-slate-700';
+          const badge = t.persuasion_tactic 
+            ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">${t.persuasion_tactic}</span>`
+            : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300">OBJECTION</span>`;
+          const resolvedBadge = t.objection_resolved ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 ml-1">RESOLVED</span>` : '';
+
+          const turnCard = document.createElement('div');
+          turnCard.className = `p-4 rounded-xl border ${cardBg} space-y-2 text-xs`;
+          turnCard.innerHTML = `
+            <div class="flex justify-between items-center">
+              <span class="font-bold text-slate-200">Turn ${t.turn_index}: ${t.speaker_name} <span class="font-normal text-slate-400">(${t.speaker_role})</span></span>
+              <div>${badge}${resolvedBadge}</div>
+            </div>
+            <div class="text-slate-300 whitespace-pre-wrap leading-relaxed">${t.message_body}</div>
+          `;
+          box.appendChild(turnCard);
+        });
+
+      } catch (err) {
+        box.innerHTML = `<p class="text-red-400 text-xs">Failed to generate agent dialogue: ${err}</p>`;
+      } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+      }
+    }
+
+    async function executeLegacyProtocol() {
+      const btn = document.getElementById('legacy-gen-btn');
+      const spinner = document.getElementById('legacy-spinner');
+      const box = document.getElementById('legacy-preview-box');
+      const stats = document.getElementById('legacy-stats');
+      const dlLink = document.getElementById('legacy-download-link');
+
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+
+      const protocol = document.getElementById('legacy-proto').value;
+      const count = parseInt(document.getElementById('legacy-count').value) || 5;
+      const amount = parseFloat(document.getElementById('legacy-amount').value) || 12500.50;
+
+      const anomalies = [];
+      const anomIds = ['fuzz-delim', 'fuzz-env', 'fuzz-seg', 'fuzz-buf', 'fuzz-sign', 'fuzz-hash', 'fuzz-width', 'fuzz-null'];
+      anomIds.forEach(id => {
+        const cb = document.getElementById(id);
+        if (cb && cb.checked) anomalies.push(cb.value);
+      });
+
+      try {
+        const res = await fetch('/api/legacy-export', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ protocol, count, amount, anomalies })
+        });
+        const data = await res.json();
+
+        stats.innerText = `Size: ${data.byte_size.toLocaleString()} bytes | Records: ${data.record_count} | Encoding: ${data.encoding} | Binary: ${data.is_binary}`;
+        box.innerText = data.preview;
+        dlLink.href = data.download_url;
+        dlLink.classList.remove('hidden');
+      } catch (err) {
+        box.innerText = `Error executing legacy protocol: ${err}`;
+      } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+      }
+    }
+
 
     async function triggerAudit() {
       try {

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 import json
 from pathlib import Path
@@ -52,9 +52,25 @@ from gl_fuzzer.fuzzing import (
     MockEnterpriseERPApplication,
     RelationalLedgerTarget,
 )
+from gl_fuzzer.agents import (
+    AgentPersona,
+    AuditorDeceptionAgent,
+    CollusiveVendorAgent,
+    ExecutivePretextAgent,
+    MultiTurnDialogueSimulator,
+    PersuasionTactic,
+)
+from gl_fuzzer.documents.email_generator import EmailThreadGenerator
+from gl_fuzzer.legacy_protocols import (
+    EDIEngine,
+    LegacyProtocolType,
+    MainframeEngine,
+    ProtocolFuzzAnomaly,
+)
 
 app = typer.Typer(help="Synthetic General Ledger Fuzzer & Calibrated Anomaly Engine | Made with <3 by Atiqul-Akash (GitHub: Atiqul-Akash)")
 console = Console()
+
 
 
 @app.command()
@@ -162,8 +178,8 @@ def generate(
             batch_entries.extend(c_entries)
             anomaly_records.extend(c_anoms)
 
-        batch_id = f"BATCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        batch = Batch(batch_id=batch_id, created_at=datetime.now().isoformat(), entries=batch_entries)
+        batch_id = f"BATCH_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        batch = Batch(batch_id=batch_id, created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), entries=batch_entries)
     else:
         engine = BaseSynthesisEngine(
             coa=coa,
@@ -175,7 +191,7 @@ def generate(
             erp_connector=erp_conn,
         )
         console.print(f"[green][Step 1] Synthesizing {count:,} clean baseline journal entries across P2P, O2C, and R2R...[/green]")
-        batch_id = f"BATCH_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        batch_id = f"BATCH_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         batch = engine.generate_batch(batch_id=batch_id, target_entry_count=count)
 
         console.print(f"[yellow][Step 2] Injecting calibrated micro-anomalies at target rate {anomaly_rate:.1%}...[/yellow]")
@@ -210,7 +226,7 @@ def generate(
 
     manifest = GroundTruthManifest(
         dataset_id=batch_id,
-        generated_at=datetime.now().isoformat(),
+        generated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         seed=seed,
         total_batches=1,
         total_entries=len(batch.entries),
@@ -782,7 +798,7 @@ def stream_feed(
     pub.connect()
     start = time.perf_counter()
 
-    batch = Batch(batch_id="STREAM_FEED", created_at=datetime.now().isoformat(), entries=entries)
+    batch = Batch(batch_id="STREAM_FEED", created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), entries=entries)
     res = pub.publish_batch(batch, topic=topic, rate_limit_eps=rate)
 
     elapsed = time.perf_counter() - start
@@ -858,5 +874,285 @@ def cluster_management(
             console.print(f"[bold red]Docker Compose stop failed: {e}[/bold red]")
 
 
+def _resolve_legacy_protocol(name: str) -> LegacyProtocolType:
+    clean = name.strip().upper()
+    mapping = {
+        "X12_810": LegacyProtocolType.ANSI_X12_810,
+        "ANSI_X12_810": LegacyProtocolType.ANSI_X12_810,
+        "810": LegacyProtocolType.ANSI_X12_810,
+        "X12_850": LegacyProtocolType.ANSI_X12_850,
+        "ANSI_X12_850": LegacyProtocolType.ANSI_X12_850,
+        "850": LegacyProtocolType.ANSI_X12_850,
+        "X12_856": LegacyProtocolType.ANSI_X12_856,
+        "ANSI_X12_856": LegacyProtocolType.ANSI_X12_856,
+        "856": LegacyProtocolType.ANSI_X12_856,
+        "EDIFACT_INVOIC": LegacyProtocolType.EDIFACT_INVOIC,
+        "INVOIC": LegacyProtocolType.EDIFACT_INVOIC,
+        "EDIFACT_ORDERS": LegacyProtocolType.EDIFACT_ORDERS,
+        "ORDERS": LegacyProtocolType.EDIFACT_ORDERS,
+        "COBOL_80": LegacyProtocolType.COBOL_COPYBOOK_80,
+        "COBOL_COPYBOOK_80": LegacyProtocolType.COBOL_COPYBOOK_80,
+        "COBOL_132": LegacyProtocolType.COBOL_COPYBOOK_132,
+        "COBOL_COPYBOOK_132": LegacyProtocolType.COBOL_COPYBOOK_132,
+        "EBCDIC": LegacyProtocolType.EBCDIC_BINARY,
+        "EBCDIC_BINARY": LegacyProtocolType.EBCDIC_BINARY,
+        "IBM_MAINFRAME_EBCDIC": LegacyProtocolType.EBCDIC_BINARY,
+        "MAINFRAME_EBCDIC": LegacyProtocolType.EBCDIC_BINARY,
+        "IBM_EBCDIC": LegacyProtocolType.EBCDIC_BINARY,
+        "NACHA_ACH": LegacyProtocolType.NACHA_ACH,
+        "NACHA": LegacyProtocolType.NACHA_ACH,
+        "ACH": LegacyProtocolType.NACHA_ACH,
+        "BAI2": LegacyProtocolType.BAI2,
+        "SWIFT_MT940": LegacyProtocolType.SWIFT_MT940,
+        "MT940": LegacyProtocolType.SWIFT_MT940,
+    }
+    if clean in mapping:
+        return mapping[clean]
+    raise ValueError(f"Unknown legacy protocol: {name}. Available: {list(mapping.keys())}")
+
+
+def _resolve_anomalies(anom_str: Optional[str]) -> list[ProtocolFuzzAnomaly]:
+    if not anom_str:
+        return []
+    res = []
+    for token in anom_str.split(","):
+        token = token.strip().upper()
+        if not token:
+            continue
+        try:
+            res.append(ProtocolFuzzAnomaly(token))
+        except ValueError:
+            console.print(f"[yellow]Warning: Ignoring unknown anomaly '{token}'[/yellow]")
+    return res
+
+
+@app.command(name="agent-dialogue")
+def agent_dialogue(
+    persona: str = typer.Option("EXECUTIVE_CFO", "--persona", "-p", help="Agent persona: EXECUTIVE_CFO, COLLUSIVE_VENDOR, AUDITOR_DECEPTOR"),
+    scenario: str = typer.Option("PROJECT_APOLLO", "--scenario", "-s", help="Pretext scenario identifier"),
+    voucher: str = typer.Option("VCH-2026-9081", "--voucher", "-v", help="Target GL voucher or invoice number"),
+    amount: str = typer.Option("$125,000.00", "--amount", "-a", help="Disputed or override dollar amount"),
+    vendor: str = typer.Option("Apex Strategic Advisory Partners", "--vendor", help="Vendor name"),
+    format: str = typer.Option("pretty", "--format", "-f", help="Output format: 'pretty' (console chat), 'json', 'eml'"),
+    out_file: Optional[Path] = typer.Option(None, "--out-file", "-o", help="Optional output file path"),
+):
+    """Generates an autonomous generative LLM social engineering fraud dialogue thread."""
+    console.print(Panel.fit(
+        "[bold magenta]Autonomous Generative LLM Social Engineering Fraud Agent[/bold magenta]\n"
+        f"[dim]Persona: {persona} | Scenario: {scenario} | Target: {voucher}[/dim]\n"
+        "[italic magenta]Made with <3 by Atiqul-Akash | GitHub: Atiqul-Akash[/italic magenta]"
+    ))
+
+    try:
+        persona_enum = AgentPersona(persona.upper())
+    except ValueError:
+        persona_enum = AgentPersona.EXECUTIVE_CFO
+
+    if persona_enum == AgentPersona.EXECUTIVE_CFO:
+        agent = ExecutivePretextAgent()
+        thread = agent.generate_wire_override_campaign(
+            voucher_id=voucher,
+            amount_str=amount,
+            vendor_name=vendor,
+        )
+    elif persona_enum == AgentPersona.COLLUSIVE_VENDOR:
+        agent = CollusiveVendorAgent()
+        thread = agent.generate_banking_diversion_campaign(
+            vendor_name=vendor,
+            invoice_number=voucher,
+            new_iban="CH9300000000123456789",
+        )
+    else:
+        agent = AuditorDeceptionAgent()
+        thread = agent.generate_audit_inquiry_response(
+            entry_id=voucher,
+            variance_amount=amount,
+        )
+
+    if format.lower() == "json":
+        json_content = thread.model_dump_json(indent=2)
+        if out_file:
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+            out_file.write_text(json_content, encoding="utf-8")
+            console.print(f"[green]Thread JSON written to {out_file}[/green]")
+        else:
+            console.print(json_content)
+
+    elif format.lower() == "eml":
+        target_path = out_file or Path(f"./output/{thread.thread_id}.eml")
+        doc_res = EmailThreadGenerator.generate_from_social_engineering_thread(target_path, thread)
+        console.print(f"[bold green]RFC-2822 Email Thread saved to:[/bold green] {doc_res.file_path} ({doc_res.file_size_bytes} bytes)")
+
+    else:
+        # Pretty console chat render
+        table = Table(title=f"Social Engineering Dialogue: {thread.subject}", show_header=True, header_style="bold magenta")
+        table.add_column("Turn", justify="center", style="dim", width=6)
+        table.add_column("Speaker / Role", style="bold cyan", width=26)
+        table.add_column("Tactic / Status", justify="center", width=22)
+        table.add_column("Message Body")
+
+        for t in thread.turns:
+            tactic_str = f"[yellow]{t.persuasion_tactic.value}[/yellow]" if t.persuasion_tactic else "[dim]OBJECTION[/dim]"
+            if t.objection_resolved:
+                tactic_str += " [green][RESOLVED][/green]"
+            table.add_row(
+                str(t.turn_index),
+                f"{t.speaker_name}\n[dim]({t.speaker_role})[/dim]",
+                tactic_str,
+                t.message_body,
+            )
+        console.print(table)
+        console.print(f"[dim]Audit Summary: {thread.audit_notes}[/dim]\n")
+        if out_file:
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+            out_file.write_text(thread.model_dump_json(indent=2), encoding="utf-8")
+            console.print(f"[green]Saved copy to {out_file}[/green]")
+
+
+@app.command(name="legacy-export")
+def legacy_export(
+    protocol: str = typer.Option("X12_810", "--protocol", "-p", help="Legacy protocol (X12_810, X12_850, X12_856, EDIFACT_INVOIC, EDIFACT_ORDERS, COBOL_80, COBOL_132, EBCDIC, NACHA_ACH, BAI2, SWIFT_MT940)"),
+    count: int = typer.Option(5, "--count", "-n", help="Number of records to generate"),
+    out_file: Path = typer.Option(..., "--out-file", "-o", help="Target output file"),
+    amount: float = typer.Option(12500.50, "--amount", "-a", help="Transaction amount"),
+    fuzz: Optional[str] = typer.Option(None, "--fuzz", help="Comma-separated anomalies to inject during export"),
+):
+    """Serializes synthetic transactions into enterprise legacy EDI, Mainframe, or Banking streams."""
+    console.print(Panel.fit(
+        "[bold cyan]Legacy Mainframe & Supply Chain EDI Protocol Exporter[/bold cyan]\n"
+        f"[dim]Protocol: {protocol.upper()} | Records: {count} | Fuzz: {fuzz or 'None'}[/dim]\n"
+        "[italic magenta]Made with <3 by Atiqul-Akash | GitHub: Atiqul-Akash[/italic magenta]"
+    ))
+
+    proto_enum = _resolve_legacy_protocol(protocol)
+    anom_list = _resolve_anomalies(fuzz)
+
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if proto_enum in (
+        LegacyProtocolType.ANSI_X12_810,
+        LegacyProtocolType.ANSI_X12_850,
+        LegacyProtocolType.ANSI_X12_856,
+        LegacyProtocolType.EDIFACT_INVOIC,
+        LegacyProtocolType.EDIFACT_ORDERS,
+    ):
+        res = EDIEngine.generate_edi_payload(
+            protocol=proto_enum,
+            document_id="DOC-2026-9001",
+            date_str="2026-04-14",
+            sender_id="SENDER01",
+            receiver_id="RECEIVER01",
+            amount=Decimal(str(amount)),
+            anomalies=anom_list,
+        )
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(res.raw_payload)
+    else:
+        mock_records = []
+        for i in range(1, count + 1):
+            mock_records.append({
+                "doc_id": f"VCH{i:05d}",
+                "date": "20260414",
+                "account": f"1010{i:04d}",
+                "dr_cr": "CR" if i % 2 == 0 else "DR",
+                "amount": str(amount),
+                "routing": "021000021",
+                "description": f"EXPEDITED SETTLEMENT LINE {i}",
+                "vendor_id": f"VEND{i:04d}",
+                "name": "NORTHERN INDUSTRIAL CORP",
+            })
+        res = MainframeEngine.generate_payload(
+            protocol=proto_enum,
+            records=mock_records,
+            anomalies=anom_list,
+        )
+        if res.is_binary:
+            with open(out_file, "wb") as f:
+                f.write(res.raw_payload)
+        else:
+            with open(out_file, "w", encoding=res.encoding) as f:
+                f.write(res.raw_payload)
+
+    console.print(f"[bold green]Successfully exported {proto_enum.value}:[/bold green] {out_file} ({res.byte_size:,} bytes, {res.record_count} records)")
+
+
+@app.command(name="legacy-fuzz")
+def legacy_fuzz(
+    protocol: str = typer.Option("NACHA_ACH", "--protocol", "-p", help="Protocol to fuzz: NACHA_ACH, X12_810, COBOL_80, EBCDIC, etc."),
+    anomalies: str = typer.Option("DELIMITER_CORRUPTION,SEGMENT_COUNT_DESYNC", "--anomalies", "-a", help="Comma-separated list of protocol anomalies"),
+    out_file: Path = typer.Option(Path("./output/fuzzed_stream.dat"), "--out-file", "-o", help="Target output file"),
+):
+    """Executes protocol-level fuzzing mutations against EDI, Mainframe, and ACH streams."""
+    console.print(Panel.fit(
+        "[bold red]Legacy Protocol Security Fuzzing Generator[/bold red]\n"
+        f"[dim]Injecting protocol-level corruptions into {protocol.upper()}[/dim]\n"
+        "[italic magenta]Made with <3 by Atiqul-Akash | GitHub: Atiqul-Akash[/italic magenta]"
+    ))
+
+    proto_enum = _resolve_legacy_protocol(protocol)
+    anom_list = _resolve_anomalies(anomalies)
+
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if proto_enum in (
+        LegacyProtocolType.ANSI_X12_810,
+        LegacyProtocolType.ANSI_X12_850,
+        LegacyProtocolType.ANSI_X12_856,
+        LegacyProtocolType.EDIFACT_INVOIC,
+        LegacyProtocolType.EDIFACT_ORDERS,
+    ):
+        res = EDIEngine.generate_edi_payload(
+            protocol=proto_enum,
+            document_id="FUZZ-EDI-001",
+            date_str="2026-04-14",
+            sender_id="FUZZ_SND",
+            receiver_id="FUZZ_RCV",
+            amount=Decimal("99999.99"),
+            anomalies=anom_list,
+        )
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(res.raw_payload)
+    else:
+        mock_records = [
+            {
+                "doc_id": "FUZZ001",
+                "date": "20260414",
+                "account": "10100000",
+                "dr_cr": "DR",
+                "amount": "88500.00",
+                "routing": "021000021",
+                "description": "SECURITY FUZZ TEST ENTRY",
+                "vendor_id": "FUZZ_VEND",
+                "name": "TEST SYSTEM UNDER ATTACK",
+            }
+        ]
+        res = MainframeEngine.generate_payload(
+            protocol=proto_enum,
+            records=mock_records,
+            anomalies=anom_list,
+        )
+        if res.is_binary:
+            with open(out_file, "wb") as f:
+                f.write(res.raw_payload)
+        else:
+            with open(out_file, "w", encoding=res.encoding) as f:
+                f.write(res.raw_payload)
+
+    table = Table(title="[bold yellow]Injected Protocol Fuzzing Report[/bold yellow]")
+    table.add_column("Target Protocol", style="cyan")
+    table.add_column("Output File")
+    table.add_column("Byte Size", justify="right")
+    table.add_column("Anomalies Injected", style="bold red")
+
+    table.add_row(
+        res.protocol_type.value,
+        str(out_file),
+        f"{res.byte_size:,}",
+        ", ".join(a.value for a in res.applied_anomalies) or "None",
+    )
+    console.print(table)
+
+
 if __name__ == "__main__":
     app()
+

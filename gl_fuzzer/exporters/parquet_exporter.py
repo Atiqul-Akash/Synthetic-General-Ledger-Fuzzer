@@ -90,7 +90,7 @@ class ParquetGLExporter:
                     "vendor_id": line.vendor_id or "",
                     "customer_id": line.customer_id or "",
                     "trading_partner": line.trading_partner or "",
-                    "line_text": line.line_text,
+                    "line_text": line.line_text or "",
                     "tax_code": line.tax_code or "",
                     "is_anomaly": entry.is_anomaly,
                     "anomaly_ids": ",".join(entry.anomaly_ids) if entry.anomaly_ids else "",

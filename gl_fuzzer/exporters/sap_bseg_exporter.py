@@ -47,9 +47,9 @@ class SAPBSEGExporter:
             writer.writeheader()
 
             for entry in entries:
-                bldat = entry.document_date.replace("-", "")
-                budat = entry.posting_date.replace("-", "")
-                cputm = entry.entry_time.replace(":", "")
+                bldat = entry.document_date.replace("-", "") if entry.document_date else "20260101"
+                budat = entry.posting_date.replace("-", "") if entry.posting_date else "20260101"
+                cputm = entry.entry_time.replace(":", "") if entry.entry_time else "090000"
 
                 writer.writerow({
                     "BUKRS": entry.company_code,
@@ -80,8 +80,8 @@ class SAPBSEGExporter:
                         "BUKRS": entry.company_code,
                         "BELNR": entry.document_number,
                         "GJAHR": str(entry.fiscal_year),
-                        "BUZEI": f"{line.line_number:03d}",
-                        "BSCHL": line.posting_key,
+                        "BUZEI": f"{min(max(1, line.line_number), 999):03d}",
+                        "BSCHL": line.posting_key or ("40" if line.debit_credit == DebitCredit.DEBIT else "50"),
                         "SHKZG": shkzg,
                         "HKONT": f"{line.account_code:0>10}",
                         "WRBTR": f"{line.amount:.2f}",

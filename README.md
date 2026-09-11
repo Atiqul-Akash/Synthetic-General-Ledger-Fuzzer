@@ -3,12 +3,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License" />
-  <img src="https://img.shields.io/badge/Tests-180%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="180 Tests Passed" />
-  <img src="https://img.shields.io/badge/Version-0.4.0%20Enterprise-blueviolet?style=for-the-badge" alt="v0.4.0 Enterprise" />
+  <img src="https://img.shields.io/badge/Tests-228%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="228 Tests Passed" />
+  <img src="https://img.shields.io/badge/Version-0.5.0%20Enterprise-blueviolet?style=for-the-badge" alt="v0.5.0 Enterprise" />
   <img src="https://img.shields.io/badge/Double--Entry-Zero--Sum%20Verified-emerald?style=for-the-badge" alt="Double-Entry Invariant" />
   <img src="https://img.shields.io/badge/SOX-404-Compliant-indigo?style=for-the-badge" alt="SOX-404 Compliant" />
   <img src="https://img.shields.io/badge/Author-Atiqul--Akash-orange?style=for-the-badge&logo=github&logoColor=white" alt="Atiqul-Akash" />
 </p>
+
 
 <p align="center">
   <strong>Enterprise-Grade Synthetic General Ledger (GL) Fuzzer & Calibrated Anomaly Engine</strong><br>
@@ -37,6 +38,8 @@
   - [3. Deep Master Data Management (MDM) Integrity & Sybil Fuzzing](#3-deep-master-data-management-mdm-integrity--sybil-fuzzing)
   - [4. Unstructured Financial Context & Multimodal Artifacts](#4-unstructured-financial-context--multimodal-artifacts)
   - [5. Turnkey Infrastructure Orchestration & CLI Cluster Management](#5-turnkey-infrastructure-orchestration--cli-cluster-management)
+- [Autonomous Generative LLM Fraud Agent Framework](#autonomous-generative-llm-fraud-agent-framework)
+- [Legacy Mainframe & Supply Chain EDI Protocol Engine](#legacy-mainframe--supply-chain-edi-protocol-engine)
 - [Core Business Cycles](#core-business-cycles)
   - [Procure-to-Pay (P2P)](#1-procure-to-pay-p2p)
   - [Order-to-Cash (O2C)](#2-order-to-cash-o2c)
@@ -48,10 +51,11 @@
 - [Double-Entry Mathematical Invariant Gate](#double-entry-mathematical-invariant-gate)
 - [Dual Graphical User Interfaces](#dual-graphical-user-interfaces)
   - [1. Modern Web GUI (Browser-Based)](#1-modern-web-gui)
-  - [2. Native Windows Desktop GUI (Offline Tkinter 6-Tab Interface)](#2-native-windows-desktop-gui)
+  - [2. Native Windows Desktop GUI (Offline Tkinter 8-Tab Interface)](#2-native-windows-desktop-gui)
 - [Quick Start & One-Click Launchers](#quick-start--one-click-launchers)
 - [CLI Reference](#cli-reference)
 - [Dual-Artifact Export Formats](#dual-artifact-export-formats)
+
 - [Automated Forensic Audit Screening (SOX-404)](#automated-forensic-audit-screening)
 - [Automated Test Suite (180 Tests)](#automated-test-suite)
 - [Repository Structure](#repository-structure)
@@ -252,8 +256,53 @@ Deploy full-scale enterprise simulation sandboxes with a single command:
 
 ---
 
+## Autonomous Generative LLM Fraud Agent Framework
+*Package: `gl_fuzzer/agents/`*
+
+Simulates high-fidelity conversational social engineering scripts, pretexting, and objection handling that accompany modern financial crimes. Operates **100% offline with zero external dependencies** via a built-in `HeuristicGenerativeEngine`, while providing pluggable adapters for cloud LLMs (OpenAI, Anthropic, Gemini, Ollama) via standard Python `urllib.request`.
+
+- **Autonomous Personas (`gl_fuzzer/agents/engine.py`)**:
+  - `ExecutivePretextAgent`: Simulates C-suite executive coercion targeting Accounts Payable analysts to bypass SOX-404 dual signoff (e.g. Project Apollo confidential stealth acquisition, board emergency resolution).
+  - `CollusiveVendorAgent`: Simulates vendor social engineering (e.g. urgent remittance banking changes before payment cutoffs, corporate reorganization pretext, shipment hold threats).
+  - `AuditorDeceptionAgent`: Crafts deceptive technical accounting memos explaining away suspicious suspense balance debits (`99999`) and timing variances under ASC 815 / ASC 250 rules.
+- **Multi-Turn Dialogue Simulation (`MultiTurnDialogueSimulator`)**:
+  - Engages skeptical AP clerks across 4+ turns.
+  - Dynamically responds to procedural objections (e.g. dual signature mandates, verbal callback requirements, missing Purchase Orders) by deploying calibrated psychological manipulation levers (`AUTHORITY`, `URGENCY`, `CONFIDENTIALITY`, `SCARCITY`, `SOCIAL_PROOF`, `TECHNICAL_OBFUSCATION`).
+- **RFC-2822 Forensic Email Serialization**:
+  - Automatically serializes full multi-turn conversational threads into forensic `.eml` format with proper `Message-ID`, `In-Reply-To`, `References`, and nested quoted history headers.
+
+---
+
+## Legacy Mainframe & Supply Chain EDI Protocol Engine
+*Package: `gl_fuzzer/legacy_protocols/`*
+
+Enterprise supply chains and core banking infrastructure often rely on decades-old protocols that modern API fuzzers cannot test. The Legacy Protocol Engine provides comprehensive serialization, format parsing, and security fuzzing across legacy enterprise standards:
+
+- **Supply Chain EDI Protocols (`edi_engine.py`)**:
+  - **ANSI X12**: Full standard serialization for **810 (Commercial Invoice)**, **850 (Purchase Order)**, and **856 (Ship Notice / ASN)** with valid `ISA`, `GS`, `ST`, `BIG`/`BEG`/`BSN`, `IT1`/`PO1`, `TDS`, `CTT`, `SE`, `GE`, `IEA` envelopes.
+  - **UN/EDIFACT**: Full standard serialization for **INVOIC (D.96A)** and **ORDERS** with `UNA`, `UNB`, `UNH`, `BGM`, `DTM`, `NAD`, `LIN`, `QTY`, `PRI`, `MOA`, `UNT`, `UNZ` segments.
+- **IBM Mainframe & COBOL Layouts (`mainframe_engine.py`)**:
+  - **COBOL Copybook 80-Column**: Fixed-width 80-character punched-card layout format (`PIC 9(6)`, `PIC X(10)`, `PIC 9(8)`, `PIC 9(10)V99`).
+  - **COBOL Copybook 132-Column**: Fixed-width 132-character line printer ledger report layout.
+  - **IBM Mainframe EBCDIC Binary (CP037)**: 32-byte binary records encoded in native IBM EBCDIC `cp037` code page with packed decimal **COMP-3** amount fields (odd/even digit support with standard `0xC` positive / `0xD` negative sign nibbles).
+- **Core Banking Interchange Protocols**:
+  - **NACHA ACH**: Strict 94-character fixed-width US banking batch format across record types `1` (File Header), `5` (Batch Header), `6` (Entry Detail), `8` (Batch Control), and `9` (File Control) with mathematical **Entry Hash** verification and **Block-10** padding (`9999...`).
+  - **BAI2**: Cash Management Account Statement records (`01`, `02`, `03`, `16`, `49`, `98`, `99`).
+  - **SWIFT MT940**: Customer Statement Message with `:20:`, `:25:`, `:28C:`, `:60F:`, `:61:`, `:86:`, and `:62F:` balance reconciliation tags.
+- **Protocol-Level Fuzzing & Mutation (`EDIMutator`, `MainframeMutator`)**:
+  - `DELIMITER_CORRUPTION`: Swaps or inverts element separators (`*` $\rightarrow$ `:`) and segment terminators (`~` $\rightarrow$ `^`).
+  - `ENVELOPE_TRUNCATION`: Drops trailer control envelopes (`IEA`, `UNZ`, Record `9`).
+  - `SEGMENT_COUNT_DESYNC`: Corrupts count fields in `SE`, `UNT`, and NACHA control records.
+  - `BUFFER_OVERFLOW`: Injects multi-kilobyte overflow strings into constrained fixed fields.
+  - `EBCDIC_SIGN_CORRUPTION`: Flips COMP-3 packed decimal sign nibbles to invalid hexadecimal values.
+  - `HASH_TOTAL_DESYNC`: Modifies routing transit entry hashes to trigger bank clearing rejection.
+  - `FIXED_WIDTH_OVERFLOW`: Violates strict 80-char or 94-char fixed-width buffer boundaries.
+  - `NULL_BYTE_INJECTION`: Injects raw `0x00` null bytes into payload streams.
+
+---
 
 ## Core Business Cycles
+
 
 The engine models three comprehensive business accounting cycles according to standard ERP practices (such as SAP S/4HANA and Oracle Financials):
 
@@ -450,6 +499,17 @@ python -m gl_fuzzer.cli benchmark --count 10000 --anomaly-rate 0.05
 # 10. Launch Graphical Interfaces
 python -m gl_fuzzer.cli gui --port 8080          # Web GUI
 python -m gl_fuzzer.cli gui --mode desktop      # Desktop GUI
+
+# 11. Autonomous Generative LLM Social Engineering Fraud Agents
+python -m gl_fuzzer.cli agent-dialogue --persona EXECUTIVE_CFO --format pretty
+python -m gl_fuzzer.cli agent-dialogue --persona COLLUSIVE_VENDOR --format eml --out-file ./output/phish_thread.eml
+python -m gl_fuzzer.cli agent-dialogue --persona AUDITOR_DECEPTOR --format json
+
+# 12. Legacy Mainframe & Supply Chain EDI Serialization & Fuzzing
+python -m gl_fuzzer.cli legacy-export --protocol X12_810 --out-file ./output/invoice.edi
+python -m gl_fuzzer.cli legacy-export --protocol NACHA_ACH --count 10 --out-file ./output/payroll.ach
+python -m gl_fuzzer.cli legacy-export --protocol EBCDIC --count 5 --out-file ./output/dump.bin
+python -m gl_fuzzer.cli legacy-fuzz --protocol NACHA_ACH --anomalies HASH_TOTAL_DESYNC,FIXED_WIDTH_OVERFLOW --out-file ./output/corrupt.ach
 ```
 
 ---
@@ -488,7 +548,7 @@ The framework includes built-in detection algorithms evaluating datasets against
 
 ## Automated Test Suite
 
-The codebase features an extensive test suite with **150 automated unit, regression, and integration tests achieving 100% pass rate**:
+The codebase features an extensive test suite with **228 automated unit, regression, and integration tests achieving 100% pass rate**:
 
 ```bash
 python -m pytest -v
@@ -499,36 +559,39 @@ python -m pytest -v
 platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0
 rootdir: C:\PROJECT\PYTHON
 configfile: pyproject.toml
-collected 172 items
+collected 228 items
 
-tests/test_acdoca.py ....                                                [  2%]
-tests/test_anomalies.py ......                                           [  5%]
-tests/test_audit_metrics.py .....                                        [  8%]
-tests/test_campaigns.py ...                                              [ 10%]
-tests/test_cli.py ...                                                    [ 12%]
-tests/test_coa_models.py ...                                             [ 13%]
-tests/test_connectors.py ..............                                  [ 22%]
-tests/test_cycles.py ....                                                [ 24%]
-tests/test_documents.py ....                                             [ 26%]
-tests/test_edge_cases.py ............                                    [ 33%]
+tests/test_acdoca.py ....                                                [  1%]
+tests/test_agents.py .........                                           [  5%]
+tests/test_anomalies.py ......                                           [  8%]
+tests/test_audit_metrics.py .....                                        [ 10%]
+tests/test_campaigns.py ...                                              [ 11%]
+tests/test_cli.py .....                                                  [ 14%]
+tests/test_coa_models.py ...                                             [ 15%]
+tests/test_connectors.py ..............                                  [ 21%]
+tests/test_cycles.py ....                                                [ 23%]
+tests/test_documents.py ....                                             [ 25%]
+tests/test_edge_cases.py ....................                            [ 33%]
 tests/test_exporters.py ....                                             [ 35%]
-tests/test_forensic_ext.py .........                                     [ 41%]
-tests/test_fuzzing.py ..........                                         [ 47%]
-tests/test_generators.py ....                                            [ 49%]
-tests/test_gui.py ............                                           [ 56%]
-tests/test_invariants.py ....                                            [ 58%]
-tests/test_macro_calendar.py .....                                       [ 61%]
-tests/test_mdm.py ....                                                   [ 63%]
-tests/test_models.py ...........                                         [ 70%]
-tests/test_multi_currency.py ........                                    [ 75%]
-tests/test_orchestration.py ...                                          [ 76%]
-tests/test_remediation.py ....                                           [ 79%]
-tests/test_streaming.py .....                                            [ 81%]
-tests/test_streaming_sinks.py .........                                  [ 87%]
-tests/test_subledgers.py .........                                       [ 92%]
+tests/test_forensic_ext.py .........                                     [ 39%]
+tests/test_fuzzing.py ..........                                         [ 43%]
+tests/test_generators.py ....                                            [ 45%]
+tests/test_gui.py ...............                                        [ 52%]
+tests/test_invariants.py ....                                            [ 53%]
+tests/test_legacy_edi.py ..........                                      [ 58%]
+tests/test_legacy_mainframe.py ........................                  [ 68%]
+tests/test_macro_calendar.py .....                                       [ 71%]
+tests/test_mdm.py ....                                                   [ 72%]
+tests/test_models.py ...........                                         [ 77%]
+tests/test_multi_currency.py ........                                    [ 81%]
+tests/test_orchestration.py ...                                          [ 82%]
+tests/test_remediation.py ....                                           [ 84%]
+tests/test_streaming.py .....                                            [ 86%]
+tests/test_streaming_sinks.py .........                                  [ 90%]
+tests/test_subledgers.py .........                                       [ 94%]
 tests/test_tax.py .............                                          [100%]
 
-============================ 180 passed in 12.39s =============================
+============================ 228 passed in 12.38s =============================
 ```
 
 ---
@@ -539,25 +602,33 @@ tests/test_tax.py .............                                          [100%]
 Synthetic-General-Ledger-Fuzzer/
 ├── gl_fuzzer/
 │   ├── __init__.py                # Package root (v0.4.0 Enterprise)
-│   ├── cli.py                     # Typer / Rich CLI with cluster management
-│   ├── web_gui.py                 # Modern browser dashboard with REST API & ACDOCA cards
-│   ├── desktop_gui.py             # Native offline Tkinter GUI (6 tabs, Thread-safe)
-│   ├── campaigns/                 # [Frontier 2] Multi-Stage Financial APT Campaigns
+│   ├── cli.py                     # Typer / Rich CLI with cluster management & legacy tools
+│   ├── web_gui.py                 # Modern browser dashboard with LLM Studio & Legacy panels
+│   ├── desktop_gui.py             # Native offline Tkinter GUI (8 tabs, Thread-safe)
+│   ├── agents/                    # [Frontier] Autonomous Generative LLM Fraud Agents
+│   │   ├── models.py              # AgentPersona, PersuasionTactic, SocialEngineeringThread
+│   │   └── engine.py              # Heuristic offline generator, executive & vendor personas
+│   ├── legacy_protocols/          # [Frontier] Legacy Mainframe & Supply Chain EDI Protocols
+│   │   ├── models.py              # LegacyProtocolType, ProtocolFuzzAnomaly models
+│   │   ├── edi_engine.py          # ANSI X12 (810/850/856), UN/EDIFACT (INVOIC/ORDERS), mutator
+│   │   └── mainframe_engine.py    # COBOL 80/132-col, EBCDIC CP037 COMP-3, NACHA ACH, BAI2, MT940
+│   ├── campaigns/                 # Multi-Stage Financial APT Campaigns
 │   │   ├── models.py              # APTCampaignRecord, APTActor, APTPhaseMilestone
 │   │   └── orchestrator.py        # Multi-quarter adversarial narrative orchestrator
-│   ├── mdm/                       # [Frontier 3] Deep Master Data Management (MDM)
+│   ├── mdm/                       # Deep Master Data Management (MDM)
 │   │   ├── models.py              # VendorMaster, CustomerMaster, EmployeeMaster, MDMAnomalyRecord
 │   │   ├── mutators.py            # Sybil clones, 24h bank tampering, employee collusion
 │   │   └── engine.py              # MasterDataManager with fuzzy screening & graph matching
-│   ├── remediation/               # [Frontier 1] Automated Remediation Oracles & Healing Loop
+│   ├── remediation/               # Automated Remediation Oracles & Healing Loop
 │   │   ├── models.py              # RemediationPatch, CompensatingControl, VerificationStatus
 │   │   ├── engine.py              # RemediationAdvisor (SAP GGB0, ABAP BAdI, SQL, SOX)
 │   │   └── healing_loop.py        # Closed-loop exploit neutralization runner
-│   ├── documents/                 # [Frontier 4] Unstructured Context & Multimodal Artifacts
+│   ├── documents/                 # Unstructured Context & Multimodal Artifacts
 │   │   ├── models.py              # SyntheticInvoiceData, DocumentMismatchType, ItemLine
 │   │   ├── pdf_generator.py       # Pure-Python zero-dependency PDF 1.4 binary engine
 │   │   ├── email_generator.py     # RFC-2822 .eml corporate override threads
 │   │   └── mismatch_injector.py   # Ledger-to-document OCR mismatch & IBAN injection
+
 │   ├── connectors/                # [Pillar 1] Stateful Bidirectional ERP Connectors
 │   │   ├── base.py                # Abstract ERPConnector & Pydantic sync models
 │   │   ├── mock_erp.py            # Offline simulated ERP database & sandbox fallback
@@ -621,8 +692,8 @@ Synthetic-General-Ledger-Fuzzer/
 │   ├── Dockerfile.mock_sap        # Mock SAP S/4HANA gateway service container
 │   └── mock_sap_service.py        # Mock OData V4 HTTP server
 ├── docker-compose.yml             # Redpanda Kafka, Mock SAP, LocalStack Kinesis compose
-├── tests/                         # 180 automated unit, regression, and integration tests
-├── pyproject.toml                 # Project configuration, dependencies, and v0.4.0 metadata
+├── tests/                         # 228 automated unit, regression, and integration tests
+├── pyproject.toml                 # Project configuration, dependencies, and v0.5.0 metadata
 ├── run.bat                        # Windows 1-click launcher
 ├── run.py                         # Cross-platform interactive launcher
 ├── LICENSE                        # MIT License

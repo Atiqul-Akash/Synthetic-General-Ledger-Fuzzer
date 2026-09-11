@@ -36,7 +36,8 @@ class SmurfingMutator(BaseAnomalyMutator):
         injection_rate: float = 0.05,
     ) -> List[AnomalyRecord]:
         records: List[AnomalyRecord] = []
-        num_clusters = max(1, int(len(batch.entries) * injection_rate / 4))
+        base_len = getattr(context, "base_entry_count", 0) or len(batch.entries)
+        num_clusters = max(1, int(base_len * injection_rate / 4))
 
         target_vendors = ["VEND_CORRUPT_701", "VEND_SHELL_992", "VEND_SPLIT_404"]
 

@@ -100,3 +100,75 @@ class EmailThreadGenerator:
             is_mismatched=True,
             mismatch_summary="Suspicious unauthenticated vendor email requesting banking routing change before payment run.",
         )
+
+    @classmethod
+    def generate_from_social_engineering_thread(
+        cls,
+        output_file: Path,
+        thread: Any,
+    ) -> SyntheticDocumentResult:
+        """Generates an RFC-2822 .eml file containing an autonomous social engineering dialogue chain."""
+        msg = email.message.EmailMessage()
+        subject = getattr(thread, "subject", "Executive Inquiries & Approvals")
+        turns = getattr(thread, "turns", [])
+        thread_id = getattr(thread, "thread_id", "THREAD-001")
+
+        if not turns:
+            msg["Subject"] = subject
+            msg["From"] = "System Notice <system@enterprise-corp.com>"
+            msg["To"] = "AP Clerk <ap@enterprise-corp.com>"
+            msg.set_content("No dialogue turns recorded in social engineering thread.")
+        else:
+            last_turn = turns[-1]
+            first_turn = turns[0]
+
+            msg["Subject"] = f"Re: {subject}" if len(turns) > 1 and not subject.startswith("Re:") else subject
+            msg["From"] = f"{last_turn.speaker_name} <{cls._format_email(last_turn.speaker_name)}>"
+            msg["To"] = f"{first_turn.speaker_name} <{cls._format_email(first_turn.speaker_name)}>"
+            msg["Date"] = last_turn.timestamp
+            msg["Message-ID"] = f"<{thread_id}.turn{len(turns)}@enterprise-corp.com>"
+
+            if len(turns) > 1:
+                prev_id = f"<{thread_id}.turn{len(turns) - 1}@enterprise-corp.com>"
+                msg["In-Reply-To"] = prev_id
+                all_refs = [f"<{thread_id}.turn{i}@enterprise-corp.com>" for i in range(1, len(turns))]
+                msg["References"] = " ".join(all_refs)
+
+            campaign_id = getattr(thread, "campaign_id", None)
+            if campaign_id:
+                msg["X-Campaign-ID"] = str(campaign_id)
+            if last_turn.persuasion_tactic:
+                msg["X-Persuasion-Tactic"] = str(last_turn.persuasion_tactic.value if hasattr(last_turn.persuasion_tactic, "value") else last_turn.persuasion_tactic)
+
+            # Build full nested conversational thread body
+            body_parts = [last_turn.message_body, "\n"]
+            for t in reversed(turns[:-1]):
+                body_parts.append(
+                    f"\n-----Original Message-----\n"
+                    f"From: {t.speaker_name}\n"
+                    f"Sent: {t.timestamp}\n"
+                    f"Role: {t.speaker_role}\n\n"
+                    f"{t.message_body}\n"
+                )
+            msg.set_content("\n".join(body_parts))
+
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(msg.as_string())
+
+        size = output_file.stat().st_size
+        return SyntheticDocumentResult(
+            document_type=DocumentArtifactType.EMAIL_APPROVAL_THREAD,
+            file_path=output_file,
+            file_size_bytes=size,
+            email_subject=msg["Subject"],
+            is_mismatched=True,
+            mismatch_summary=getattr(thread, "audit_notes", "Autonomous generative LLM social engineering thread."),
+        )
+
+    @staticmethod
+    def _format_email(speaker_name: str) -> str:
+        clean = re.sub(r"[^a-zA-Z0-9\s]", "", speaker_name).strip()
+        first_token = clean.split()[0].lower() if clean else "user"
+        return f"{first_token}@enterprise-corp.com"
+

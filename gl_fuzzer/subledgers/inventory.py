@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 import uuid
 from pydantic import BaseModel, Field
 
@@ -57,7 +57,7 @@ class WarehouseInventory:
 
     def __init__(self):
         self.materials: Dict[str, MaterialMasterItem] = {}
-        self.bins: Dict[Tuple[str, str, str], BinLocation] = {}  # (plant, sloc, bin_id)
+        self.bins: Dict[Tuple[str, str, str, str], BinLocation] = {}  # (plant, sloc, bin_id, matnr)
         self.movements: List[StockMovement] = []
 
     def register_material(self, item: MaterialMasterItem) -> None:
@@ -126,7 +126,7 @@ class WarehouseInventory:
             plant=plant,
             storage_location=storage_location,
             bin_id=bin_id,
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         )
         self.movements.append(m)
         return m
@@ -164,7 +164,7 @@ class WarehouseInventory:
             plant=plant,
             storage_location=storage_location,
             bin_id=bin_id,
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         )
         bin_loc.qty_on_hand -= qty_dec
         self.movements.append(m)
@@ -203,7 +203,7 @@ class WarehouseInventory:
             plant=plant,
             storage_location=storage_location,
             bin_id=bin_id,
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         )
         self.movements.append(m)
         return variance_qty, variance_val, m

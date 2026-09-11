@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import uuid
 from typing import Any, Dict, List, Optional
@@ -197,5 +197,5 @@ class FuzzingCampaign:
             rule_coverage_percent=self.coverage_oracle.coverage_percent,
             uncovered_rules=self.coverage_oracle.uncovered_rules,
             iteration_reports=iteration_reports,
-            generated_at=datetime.now().isoformat(),
+            generated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         )

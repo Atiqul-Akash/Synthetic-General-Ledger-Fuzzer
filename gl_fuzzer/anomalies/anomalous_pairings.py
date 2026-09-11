@@ -63,7 +63,8 @@ class AnomalousPairingsMutator(BaseAnomalyMutator):
         injection_rate: float = 0.05,
     ) -> List[AnomalyRecord]:
         records: List[AnomalyRecord] = []
-        num_pairings = max(1, int(len(batch.entries) * injection_rate))
+        base_len = getattr(context, "base_entry_count", 0) or len(batch.entries)
+        num_pairings = max(1, int(base_len * injection_rate))
         company_code = batch.entries[0].company_code if batch.entries else "1000"
 
         for _ in range(num_pairings):

@@ -48,6 +48,7 @@ class AnomalyPipeline:
     ) -> List[AnomalyRecord]:
         """Runs the mutator pipeline on the given batch and returns all generated AnomalyRecords."""
         all_records: List[AnomalyRecord] = []
+        self.context.base_entry_count = len(batch.entries)
         rates = rates_per_type or {}
 
         # Determine individual mutator rates (distributed evenly if not explicitly specified)

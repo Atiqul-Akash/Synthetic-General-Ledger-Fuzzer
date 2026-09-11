@@ -112,7 +112,7 @@ class ThreeWayMatchingEngine:
         gr = GoodsReceipt(
             gr_number=f"WE_{uuid.uuid4().hex[:8].upper()}",
             po_number=po.po_number,
-            received_qty=received_qty,
+            received_qty=rec_qty_dec,
             actual_unit_cost=unit_cost,
             gr_date=gr_date,
             material_document=mvt.movement_id,
@@ -120,7 +120,7 @@ class ThreeWayMatchingEngine:
         self.goods_receipts[po.po_number].append(gr)
 
         # Generate accounting voucher: Dr Raw Materials (14000) / Cr GR/IR Clearing (21150)
-        total_val = (received_qty * unit_cost).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        total_val = (rec_qty_dec * unit_cost).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         doc_num = f"WE_{uuid.uuid4().hex[:8].upper()}"
 
         lines = [

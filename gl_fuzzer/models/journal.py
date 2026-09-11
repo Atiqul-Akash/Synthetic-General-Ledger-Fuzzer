@@ -40,7 +40,7 @@ class LineItem(BaseModel):
     debit_credit: DebitCredit = Field(..., description="DEBIT or CREDIT indicator (SHKZG: S=Debit, H=Credit)")
     amount: Decimal = Field(..., description="Monetary amount in document currency (WRBTR / WSL)")
     currency: str = Field(default="USD", description="Currency code (WAERS / RWCUR)")
-    posting_key: str = Field(default="40", description="SAP Posting Key (BSCHL: 40=Debit GL, 50=Credit GL, etc.)")
+    posting_key: Optional[str] = Field(default=None, description="SAP Posting Key (BSCHL: 40=Debit GL, 50=Credit GL, etc.)")
     cost_center: Optional[str] = Field(default=None, description="Cost Center (KOSTL / RCNTR)")
     profit_center: Optional[str] = Field(default=None, description="Profit Center (PRCTR)")
     vendor_id: Optional[str] = Field(default=None, description="Vendor master ID (LIFNR)")
@@ -81,7 +81,7 @@ class LineItem(BaseModel):
         self.amount_group = amt_grp.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         # Ensure correct SAP posting key default if not explicitly provided
-        if self.posting_key in ("40", "50"):
+        if not self.posting_key:
             self.posting_key = "40" if self.debit_credit == DebitCredit.DEBIT else "50"
         return self
 

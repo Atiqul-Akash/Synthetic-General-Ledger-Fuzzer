@@ -94,7 +94,7 @@ class SAPACDOCAExporter:
             "USNAM": (entry.created_by or "SYSTEM")[:12],
             "XBLNR": (entry.reference or "")[:16],
             "BKTXT": (entry.header_text or "")[:25],
-            "BSCHL": line.posting_key,
+            "BSCHL": line.posting_key or ("40" if line.debit_credit == DebitCredit.DEBIT else "50"),
             "DRCRK": drcrk,
             "RACCT": line.account_code,
             "TXT50": line.account_name[:50] if line.account_name else "",

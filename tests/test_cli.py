@@ -81,3 +81,61 @@ def test_cli_generate_acdoca_streaming_multi_currency(tmp_path: Path):
     assert (out_dir / "acdoca_feed.csv").exists()
     assert (out_dir / "ground_truth_manifest.json").exists()
 
+
+def test_cli_agent_dialogue_json_and_eml(tmp_path: Path):
+    eml_file = tmp_path / "agent_thread.eml"
+    res_eml = runner.invoke(
+        app,
+        [
+            "agent-dialogue",
+            "--persona", "EXECUTIVE_CFO",
+            "--format", "eml",
+            "--out-file", str(eml_file),
+        ],
+    )
+    assert res_eml.exit_code == 0
+    assert eml_file.exists()
+    assert "RFC-2822 Email Thread saved to:" in res_eml.output
+
+    res_json = runner.invoke(
+        app,
+        [
+            "agent-dialogue",
+            "--persona", "COLLUSIVE_VENDOR",
+            "--format", "json",
+        ],
+    )
+    assert res_json.exit_code == 0
+    assert "CAMP-VENDOR-BANK-DIVERSION" in res_json.output
+
+
+def test_cli_legacy_export_and_fuzz(tmp_path: Path):
+    edi_file = tmp_path / "invoice.edi"
+    res_export = runner.invoke(
+        app,
+        [
+            "legacy-export",
+            "--protocol", "X12_810",
+            "--count", "3",
+            "--out-file", str(edi_file),
+        ],
+    )
+    assert res_export.exit_code == 0
+    assert edi_file.exists()
+    assert "Successfully exported ANSI_X12_810" in res_export.output
+
+    fuzz_file = tmp_path / "fuzzed.ach"
+    res_fuzz = runner.invoke(
+        app,
+        [
+            "legacy-fuzz",
+            "--protocol", "NACHA_ACH",
+            "--anomalies", "HASH_TOTAL_DESYNC,FIXED_WIDTH_OVERFLOW",
+            "--out-file", str(fuzz_file),
+        ],
+    )
+    assert res_fuzz.exit_code == 0
+    assert fuzz_file.exists()
+    assert "HASH_TOTAL_DESYNC" in res_fuzz.output
+
+
