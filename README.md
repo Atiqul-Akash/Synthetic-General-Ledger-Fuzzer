@@ -40,12 +40,13 @@
   - [5. Turnkey Infrastructure Orchestration & CLI Cluster Management](#5-turnkey-infrastructure-orchestration--cli-cluster-management)
 - [Autonomous Generative LLM Fraud Agent Framework](#autonomous-generative-llm-fraud-agent-framework)
 - [Legacy Mainframe & Supply Chain EDI Protocol Engine](#legacy-mainframe--supply-chain-edi-protocol-engine)
-- [Five Enterprise Simulation Frontiers (v0.6)](#five-enterprise-simulation-frontiers-v06)
-  - [1. Balance Sheet Subledgers (Fixed Assets & Treasury)](#1-balance-sheet-subledgers-fixed-assets-ias-1636--treasury-ifrs-9)
+- [Enterprise Simulation & Realism Frontiers (v0.6)](#enterprise-simulation--realism-frontiers-v06)
+  - [1. Balance Sheet Subledgers (Fixed Assets IAS 16/36, Treasury IFRS 9 & FAGL_FCV FX Revaluation)](#1-balance-sheet-subledgers-fixed-assets-ias-1636-treasury-ifrs-9--fagl_fcv-fx-revaluation)
   - [2. High-Performance Multi-Core Parallel Engine](#2-high-performance-multi-core-parallel-engine)
   - [3. Generative Tabular Machine Learning](#3-generative-tabular-machine-learning)
   - [4. Multi-ERP Master Schemas (Workday, D365, NetSuite, Oracle Cloud)](#4-multi-erp-master-schemas)
   - [5. Cryptographic Triple-Entry & DLT Consensus Drivers](#5-cryptographic-triple-entry--dlt-consensus-drivers)
+  - [6. Coupled Hawkes Point Process Lead-Time Generator](#6-coupled-hawkes-point-process-lead-time-generator)
 - [Core Business Cycles](#core-business-cycles)
   - [Procure-to-Pay (P2P)](#1-procure-to-pay-p2p)
   - [Order-to-Cash (O2C)](#2-order-to-cash-o2c)
@@ -63,7 +64,7 @@
 - [Dual-Artifact Export Formats](#dual-artifact-export-formats)
 
 - [Automated Forensic Audit Screening (SOX-404)](#automated-forensic-audit-screening)
-- [Automated Test Suite (277 Tests)](#automated-test-suite)
+- [Automated Test Suite (294 Tests)](#automated-test-suite)
 - [Repository Structure](#repository-structure)
 - [Contributing & License](#contributing--license)
 
@@ -74,7 +75,7 @@
 
 Building enterprise fraud-detection models, validating accounting automation systems, and auditing ERP integrity faces a notorious **cold-start dilemma**: real-world general ledger transaction feeds containing verified financial crimes or edge cases are confidential, legally restricted, and exceptionally rare.
 
-The **Synthetic General Ledger Fuzzer (v0.4 Enterprise)** bridges this gap by providing an end-to-end framework capable of:
+The **Synthetic General Ledger Fuzzer (v0.6.0 Enterprise)** bridges this gap by providing an end-to-end framework capable of:
 1. **Mathematical Invariant Rigor**: Every synthesized transaction voucher strictly enforces $\sum \text{Debits} \equiv \sum \text{Credits}$ across document, functional/local, and group consolidation currencies at exact cent precision (`Decimal("0.01")`).
 2. **Stateful ERP Interoperability**: Bi-directionally reads master data and balances from live or simulated SAP S/4HANA (OData V4, NetWeaver RFC) and Oracle Fusion Cloud REST environments.
 3. **Multi-Jurisdictional Tax Compliance**: Evaluates nexus, VAT reverse charges, and statutory withholding taxes across 50 US states, 27 EU member nations, the UK HMRC, and India TDS.
@@ -307,10 +308,10 @@ Enterprise supply chains and core banking infrastructure often rely on decades-o
 
 ---
 
-## Five Enterprise Simulation Frontiers (v0.6)
+## Enterprise Simulation & Realism Frontiers (v0.6)
 
-### 1. Balance Sheet Subledgers (Fixed Assets IAS 16/36 & Treasury IFRS 9)
-*Package: `gl_fuzzer/subledgers/` (`fixed_assets.py`, `treasury.py`)*
+### 1. Balance Sheet Subledgers (Fixed Assets IAS 16/36, Treasury IFRS 9 & FAGL_FCV FX Revaluation)
+*Package: `gl_fuzzer/subledgers/` (`fixed_assets.py`, `treasury.py`, `fx_revaluation.py`)*
 
 Expands beyond operational supply chain subledgers into long-term balance sheet cycles:
 - **Fixed Asset Life Management (`FixedAssetSubledger`)**:
@@ -327,6 +328,11 @@ Expands beyond operational supply chain subledgers into long-term balance sheet 
   - **Continuous Debt Covenant Monitoring**: Real-time evaluation of Leverage Ratio ($\text{Debt}/\text{EBITDA} \le 4.5\times$), Interest Coverage ($\text{EBIT}/\text{Interest} \ge 3.0\times$), and Debt-to-Equity ($\le 2.0\times$).
   - **Derivative Hedging (IAS 39 / IFRS 9)**: Fixed-for-floating Interest Rate Swaps (IRS), Fair Value Hedges (P&L), and Cash Flow Hedges (OCI vs P&L ineffectiveness splits).
   - **Calibrated Fraud Mutators**: `CovenantSuppressionMutator` (debt-to-equity reclass), `HedgeIneffectivenessConcealment` (hiding ineffectiveness in OCI), `DebtRolloverConcealment` (hiding short-term debt maturity).
+- **Month-End Unrealized Foreign Exchange Revaluation (`FXRevaluationEngine` / FAGL_FCV)**:
+  - Automates **ASC 830 / IAS 21** foreign currency revaluations on open Accounts Payable (`20000`) and Accounts Receivable (`11000`) open items.
+  - Compares historical transaction spot rates against period-end closing spot rates from `ExchangeRateProvider`.
+  - Books balanced unrealized P&L entries: **Unrealized FX Gain** (`71000`) or **Unrealized FX Loss** (`72000`) paired with balance sheet adjustment accounts (`11900` / `21900`).
+  - Automatically schedules Day-1 subsequent month reversal vouchers ensuring zero net distortion on settled operational cash flows.
 
 ---
 
@@ -396,6 +402,18 @@ Triple-entry bookkeeping and decentralized enterprise ledger consensus simulatio
 - **Enterprise EVM Smart Contract Driver (`EVMSmartContractSimulator`)**:
   - Simulates tokenized settlement smart contracts (ERC-20 / ERC-1155).
   - Fuzzes smart contract vulnerabilities: **Integer Underflow/Overflow** (pre-0.8 uint256 wrapping), **Reentrancy Exploits** (recursive external call draining), **Gas Limit Exhaustion** (block gas overflow), and **Storage Slot Collisions** (proxy delegatecall corruption).
+
+---
+
+### 6. Coupled Hawkes Point Process Lead-Time Generator
+*Package: `gl_fuzzer/generators/hawkes_process.py`*
+
+Provides stochastic enterprise temporal dynamics modeling invoice-to-payment lead times:
+- **Coupled Hawkes Process (`CoupledHawkesPointProcess`)**:
+  - Models self-exciting point processes with conditional intensity $\lambda(t) = \mu + \sum_{t_i < t} \alpha e^{-\beta(t - t_i)}$ in a subcritical regime ($\alpha / \beta < 1$).
+  - Evaluates commercial payment terms: $T+30$ Net 30, $T+60$ Net 60, and bimodal $2/10\text{ net }30$ early discount optimization distributions.
+  - Simulates treasury payment batching combs (weekly payment disbursement runs on specific weekdays, e.g., Tuesdays/Thursdays).
+  - Integrated `BusinessCalendar.snap_to_weekday()` forward and fallback snapping ensuring zero weekend payment executions.
 
 ---
 
@@ -644,12 +662,12 @@ The framework includes built-in detection algorithms evaluating datasets against
 
 ---
 
-## Automated Test Suite
+### Automated Test Suite (294 Tests)
 
-The codebase features an extensive test suite with **228 automated unit, regression, and integration tests achieving 100% pass rate**:
+The codebase features an extensive test suite with **294 automated unit, regression, and integration tests achieving 100% pass rate**:
 
 ```bash
-python -m pytest -v
+python -m pytest -q
 ```
 
 ```
@@ -657,39 +675,47 @@ python -m pytest -v
 platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0
 rootdir: C:\PROJECT\PYTHON
 configfile: pyproject.toml
-collected 228 items
+collected 294 items
 
 tests/test_acdoca.py ....                                                [  1%]
-tests/test_agents.py .........                                           [  5%]
-tests/test_anomalies.py ......                                           [  8%]
-tests/test_audit_metrics.py .....                                        [ 10%]
-tests/test_campaigns.py ...                                              [ 11%]
-tests/test_cli.py .....                                                  [ 14%]
-tests/test_coa_models.py ...                                             [ 15%]
-tests/test_connectors.py ..............                                  [ 21%]
-tests/test_cycles.py ....                                                [ 23%]
+tests/test_agents.py .........                                           [  4%]
+tests/test_anomalies.py ........                                         [  7%]
+tests/test_audit_metrics.py .....                                        [  9%]
+tests/test_campaigns.py ...                                              [ 10%]
+tests/test_cli.py .........                                              [ 13%]
+tests/test_coa_models.py ...                                             [ 14%]
+tests/test_connectors.py ..............                                  [ 19%]
+tests/test_cycles.py ......                                              [ 21%]
+tests/test_dlt_triple_entry.py ..........                                [ 24%]
 tests/test_documents.py ....                                             [ 25%]
-tests/test_edge_cases.py ....................                            [ 33%]
-tests/test_exporters.py ....                                             [ 35%]
-tests/test_forensic_ext.py .........                                     [ 39%]
-tests/test_fuzzing.py ..........                                         [ 43%]
-tests/test_generators.py ....                                            [ 45%]
+tests/test_edge_cases.py .......................                         [ 33%]
+tests/test_exporters.py ....                                             [ 34%]
+tests/test_fixed_assets.py ............                                  [ 38%]
+tests/test_forensic_ext.py .........                                     [ 41%]
+tests/test_fuzzing.py ..........                                         [ 44%]
+tests/test_fx_revaluation.py ....                                        [ 45%]
+tests/test_generators.py ....                                            [ 47%]
 tests/test_gui.py ...............                                        [ 52%]
-tests/test_invariants.py ....                                            [ 53%]
-tests/test_legacy_edi.py ..........                                      [ 58%]
+tests/test_hawkes_process.py ........                                    [ 55%]
+tests/test_invariants.py ....                                            [ 56%]
+tests/test_legacy_edi.py ..........                                      [ 59%]
 tests/test_legacy_mainframe.py ........................                  [ 68%]
-tests/test_macro_calendar.py .....                                       [ 71%]
-tests/test_mdm.py ....                                                   [ 72%]
-tests/test_models.py ...........                                         [ 77%]
-tests/test_multi_currency.py ........                                    [ 81%]
+tests/test_macro_calendar.py .....                                       [ 69%]
+tests/test_mdm.py ....                                                   [ 71%]
+tests/test_ml_generative.py .....                                        [ 73%]
+tests/test_models.py ...........                                         [ 76%]
+tests/test_multi_currency.py ........                                    [ 79%]
+tests/test_multi_erp_exporters.py ....                                   [ 80%]
+tests/test_multicore_engine.py ...                                       [ 81%]
 tests/test_orchestration.py ...                                          [ 82%]
 tests/test_remediation.py ....                                           [ 84%]
-tests/test_streaming.py .....                                            [ 86%]
-tests/test_streaming_sinks.py .........                                  [ 90%]
-tests/test_subledgers.py .........                                       [ 94%]
-tests/test_tax.py .............                                          [100%]
+tests/test_streaming.py .....                                            [ 85%]
+tests/test_streaming_sinks.py .........                                  [ 88%]
+tests/test_subledgers.py .........                                       [ 91%]
+tests/test_tax.py .............                                          [ 96%]
+tests/test_treasury.py .........                                         [100%]
 
-============================ 277 passed in 18.00s =============================
+============================ 294 passed in 20.11s =============================
 ```
 
 ---
@@ -726,7 +752,6 @@ Synthetic-General-Ledger-Fuzzer/
 │   │   ├── pdf_generator.py       # Pure-Python zero-dependency PDF 1.4 binary engine
 │   │   ├── email_generator.py     # RFC-2822 .eml corporate override threads
 │   │   └── mismatch_injector.py   # Ledger-to-document OCR mismatch & IBAN injection
-
 │   ├── connectors/                # [Pillar 1] Stateful Bidirectional ERP Connectors
 │   │   ├── base.py                # Abstract ERPConnector & Pydantic sync models
 │   │   ├── mock_erp.py            # Offline simulated ERP database & sandbox fallback
@@ -748,10 +773,12 @@ Synthetic-General-Ledger-Fuzzer/
 │   ├── subledgers/                # [Pillar 4] Operational Logistics & Balance Sheet Subledgers
 │   │   ├── fixed_assets.py        # [Frontier 1] IAS 16/36 fixed assets, depreciation (SL/DDB/UOP), impairment
 │   │   ├── treasury.py            # [Frontier 1] IFRS 9 debt facilities, EIR amortized cost, covenants, IRS hedges
+│   │   ├── fx_revaluation.py      # [Frontier 1] ASC 830 / IAS 21 month-end FAGL_FCV FX revaluations & Day-1 reversals
 │   │   ├── inventory.py           # Material Master, moving average price (MAP), bin stock
 │   │   ├── three_way_match.py     # 3-Way Match (PO -> GR/WE -> IR/RE), price variance (PPV)
 │   │   └── order_fulfillment.py   # Sales Order fulfillment, delivery (GI/WA), COGS calculation
 │   ├── generators/                # Core Synthesis & Parallel Engines
+│   │   ├── hawkes_process.py      # [Frontier 6] Coupled Hawkes Point Process invoice-to-payment lead times
 │   │   ├── parallel_engine.py     # [Frontier 2] High-performance multi-core ProcessPool parallel generation
 │   │   ├── distributions.py       # Benford, LogNormal, BusinessCalendar sampling
 │   │   ├── macro_calendar.py      # Macro-economic calendar & quarterly seasonality
@@ -804,7 +831,7 @@ Synthetic-General-Ledger-Fuzzer/
 │   ├── Dockerfile.mock_sap        # Mock SAP S/4HANA gateway service container
 │   └── mock_sap_service.py        # Mock OData V4 HTTP server
 ├── docker-compose.yml             # Redpanda Kafka, Mock SAP, LocalStack Kinesis compose
-├── tests/                         # 277 automated unit, regression, and integration tests
+├── tests/                         # 294 automated unit, regression, and integration tests
 ├── pyproject.toml                 # Project configuration, dependencies, and v0.6.0 metadata
 ├── run.bat                        # Windows 1-click launcher
 ├── run.py                         # Cross-platform interactive launcher
