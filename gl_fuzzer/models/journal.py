@@ -28,6 +28,9 @@ class DocumentType(str, Enum):
     GI = "GI"  # Internal Goods Issue with COGS derivation
     MJE = "MJE"  # Manual Adjusting Journal Entry
     IC = "IC"  # Intercompany Transfer Document
+    AA = "AA"  # Asset Accounting (IAS 16 / IAS 36 / IFRS 16)
+    TR = "TR"  # Treasury & Debt Facilities (IFRS 9 / ASC 835)
+    AB = "AB"  # General Clearing / Reversal Document (SAP Standard)
 
 
 class LineItem(BaseModel):
@@ -128,9 +131,17 @@ class JournalEntry(BaseModel):
         return (self.total_debits - self.total_credits).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     @property
+    def is_currency_consistent(self) -> bool:
+        """True if all line items in the entry share the same transaction currency (or entry has no lines)."""
+        if not self.lines:
+            return True
+        first_curr = self.lines[0].currency
+        return all(line.currency == first_curr for line in self.lines)
+
+    @property
     def is_balanced(self) -> bool:
-        """Double-entry invariant: Total Debits == Total Credits."""
-        return self.balance_delta == Decimal("0.00")
+        """Double-entry invariant: Total Debits == Total Credits and uniform transaction currency."""
+        return self.is_currency_consistent and self.balance_delta == Decimal("0.00")
 
     @property
     def total_debits_local(self) -> Decimal:

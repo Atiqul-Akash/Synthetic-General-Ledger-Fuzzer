@@ -79,7 +79,7 @@ class USSalesTaxEngine:
 
         # Build tax line item
         tax_lines = []
-        if tax_amt > Decimal("0.00"):
+        if tax_amt != Decimal("0.00"):
             line_id = f"TAX_US_{uuid.uuid4().hex[:8].upper()}"
             if is_purchase:
                 # Purchase (P2P): Debit Input Tax / Sales Tax Expense
@@ -161,7 +161,7 @@ class USSalesTaxEngine:
         )
 
         tax_lines = []
-        if tax_amt > Decimal("0.00"):
+        if tax_amt != Decimal("0.00"):
             uid = uuid.uuid4().hex[:8].upper()
             # Debit Use Tax Receivable
             tax_lines.append(

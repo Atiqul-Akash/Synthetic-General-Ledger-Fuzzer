@@ -85,7 +85,7 @@ class SAPACDOCAExporter:
             "GJAHR": entry.fiscal_year,
             "BELNR": entry.document_number,
             "DOCLN": docln,
-            "BLART": entry.document_type.value,
+            "BLART": entry.document_type.value if hasattr(entry.document_type, "value") else str(entry.document_type),
             "BLDAT": bldat,
             "BUDAT": budat,
             "POPER": poper,

@@ -1,7 +1,4 @@
-"""Record-to-Report (R2R) periodic close journal entries (Depreciation, Accruals, Payroll, Intercompany)."""
-
-from __future__ import annotations
-
+from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 import uuid
@@ -10,6 +7,7 @@ import numpy as np
 from gl_fuzzer.models.coa import ChartOfAccounts
 from gl_fuzzer.models.journal import DebitCredit, DocumentType, JournalEntry, LineItem
 from gl_fuzzer.generators.distributions import BusinessCalendar, LogNormalAmountGenerator
+from gl_fuzzer.subledgers.fx_revaluation import ForeignCurrencyValuationEngine
 
 
 class R2RCycleGenerator:
@@ -21,11 +19,13 @@ class R2RCycleGenerator:
         calendar: BusinessCalendar,
         amount_gen: Optional[LogNormalAmountGenerator] = None,
         rng: Optional[np.random.Generator] = None,
+        fx_engine: Optional[ForeignCurrencyValuationEngine] = None,
     ):
         self.coa = coa
         self.calendar = calendar
         self.amount_gen = amount_gen or LogNormalAmountGenerator(mean_log=8.0, sigma_log=0.9, rng=rng)
         self.rng = rng or np.random.default_rng()
+        self.fx_engine = fx_engine or ForeignCurrencyValuationEngine(coa=self.coa, seed=int(self.rng.integers(1, 1000000)))
 
     def generate_depreciation_run(self, batch_id: str, company_code: str = "1000") -> JournalEntry:
         """Monthly fixed asset depreciation run."""
@@ -214,4 +214,20 @@ class R2RCycleGenerator:
             header_text="Month End Utilities Accrual",
             business_cycle="R2R",
             lines=lines,
+        )
+
+    def generate_fagl_fcv_run(
+        self,
+        batch_id: str,
+        company_code: str = "1000",
+        valuation_date: Optional[date] = None,
+        post_auto_reversal: bool = True,
+    ) -> List[JournalEntry]:
+        """Generates SAP FAGL_FCV month-end foreign currency valuation and Day-1 reversal vouchers."""
+        v_date = valuation_date or self.calendar.random_month_end_date()
+        return self.fx_engine.generate_synthetic_fcv_run(
+            batch_id=batch_id,
+            company_code=company_code,
+            valuation_date=v_date,
+            post_auto_reversal=post_auto_reversal,
         )

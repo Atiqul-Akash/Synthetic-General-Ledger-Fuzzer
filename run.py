@@ -38,7 +38,7 @@ def main():
     print("  [2] Native Windows Desktop GUI (Offline Window)")
     print("  [3] Generate 1,000 Sample Ledger Entries (Parquet, CSV, SAP BSEG, ACDOCA)")
     print("  [4] Run SOX-404 Forensic Audit on Generated Dataset")
-    print("  [5] Run Complete Automated Test Suite (pytest - 228 tests)")
+    print("  [5] Run Complete Automated Test Suite (pytest - 291 tests)")
     print("  [6] Exit")
     print()
 

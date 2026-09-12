@@ -98,7 +98,7 @@ class TaxLocalizationEngine:
                 is_reverse_charge=False,
             )
             tax_lines = []
-            if tax_amt > Decimal("0.00"):
+            if tax_amt != Decimal("0.00"):
                 line_id = f"TAX_GL_{uuid.uuid4().hex[:8].upper()}"
                 if is_purchase:
                     tax_lines.append(
@@ -187,29 +187,37 @@ class TaxLocalizationEngine:
         if not calc.tax_line_items:
             return entry
 
-        if calc.is_reverse_charge:
-            # Reverse charge wash legs: Dr Input VAT / Cr Output VAT
-            # AP / AR amount remains unchanged because buyer self-assesses
-            for t_line in calc.tax_line_items:
-                t_line.entry_id = entry.entry_id
-                t_line.line_number = len(entry.lines) + 1
-                entry.lines.append(t_line)
-        else:
-            # Standard tax: Increase reconciliation leg (AR/AP) by tax_amount
-            for t_line in calc.tax_line_items:
-                t_line.entry_id = entry.entry_id
-                t_line.line_number = len(entry.lines) + 1
-                entry.lines.append(t_line)
+        doc_currency = getattr(base_line, "currency", "USD") or "USD"
+        rate_loc = getattr(base_line, "exchange_rate_local", Decimal("1.000000")) or Decimal("1.000000")
+        rate_grp = getattr(base_line, "exchange_rate_group", Decimal("1.000000")) or Decimal("1.000000")
+        curr_loc = getattr(base_line, "currency_local", "USD") or "USD"
+        curr_grp = getattr(base_line, "currency_group", "USD") or "USD"
 
-            if reconciliation_line is not None:
-                new_total = (reconciliation_line.amount + calc.tax_amount).quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )
-                reconciliation_line.amount = new_total
-                if reconciliation_line.amount_local is not None:
-                    reconciliation_line.amount_local = new_total
-                if reconciliation_line.amount_group is not None:
-                    reconciliation_line.amount_group = new_total
+        for t_line in calc.tax_line_items:
+            t_line.entry_id = entry.entry_id
+            t_line.line_number = len(entry.lines) + 1
+            t_line.currency = doc_currency
+            t_line.currency_local = curr_loc
+            t_line.currency_group = curr_grp
+            t_line.exchange_rate_local = rate_loc
+            t_line.exchange_rate_group = rate_grp
+            t_line.amount_local = (t_line.amount * rate_loc).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            t_line.amount_group = (t_line.amount_local * rate_grp).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            entry.lines.append(t_line)
+
+        if not calc.is_reverse_charge and reconciliation_line is not None:
+            # Standard tax: Increase reconciliation leg (AR/AP) by tax_amount
+            new_total = (reconciliation_line.amount + calc.tax_amount).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            reconciliation_line.amount = new_total
+            rec_rate_loc = getattr(reconciliation_line, "exchange_rate_local", Decimal("1.000000")) or Decimal("1.000000")
+            rec_rate_grp = getattr(reconciliation_line, "exchange_rate_group", Decimal("1.000000")) or Decimal("1.000000")
+            if reconciliation_line.amount_local is not None:
+                reconciliation_line.amount_local = (new_total * rec_rate_loc).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if reconciliation_line.amount_group is not None:
+                amt_loc = reconciliation_line.amount_local if reconciliation_line.amount_local is not None else (new_total * rec_rate_loc)
+                reconciliation_line.amount_group = (amt_loc * rec_rate_grp).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         return entry
 

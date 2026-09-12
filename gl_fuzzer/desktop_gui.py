@@ -621,9 +621,8 @@ class DesktopGUI:
         status_filter = self.filter_status_var.get()
         search_query = self.search_text_var.get().strip().lower()
 
-        displayed_count = 0
+        matching_entries = []
         max_display = 250  # Keep UI responsive
-
         for entry in self.state.batch.entries:
             # Cycle filter
             if cycle_filter != "ALL" and entry.business_cycle != cycle_filter:
@@ -641,10 +640,23 @@ class DesktopGUI:
                 if search_query not in haystack:
                     continue
 
+            matching_entries.append(entry)
+
+        # Guarantee all anomalous entries are displayed in preview before filling remainder with clean entries
+        if status_filter == "ALL":
+            anom_matches = [e for e in matching_entries if e.is_anomaly]
+            clean_matches = [e for e in matching_entries if not e.is_anomaly]
+            needed_clean = max(0, max_display - len(anom_matches))
+            display_candidates = anom_matches + clean_matches[:needed_clean]
+            display_candidates.sort(key=lambda e: (e.posting_date, getattr(e, "entry_time", "00:00:00") or "00:00:00"))
+        else:
+            display_candidates = matching_entries[:max_display]
+
+        for entry in display_candidates:
             anom_tag = ", ".join(entry.anomaly_ids) if entry.is_anomaly else "CLEAN"
             balanced_text = "YES [PASS]" if entry.is_balanced else "NO [FAIL]"
 
-            item_id = self.tree_entries.insert(
+            self.tree_entries.insert(
                 "",
                 tk.END,
                 values=(
@@ -660,12 +672,13 @@ class DesktopGUI:
                     anom_tag,
                 ),
             )
-            displayed_count += 1
-            if displayed_count >= max_display:
-                break
 
+        matching_total = len(matching_entries)
         total_total = len(self.state.batch.entries)
-        self.lbl_explorer_count.config(text=f"Showing {displayed_count} of {total_total} entries (display capped at {max_display})")
+        anom_total = sum(1 for e in self.state.batch.entries if e.is_anomaly)
+        self.lbl_explorer_count.config(
+            text=f"Showing {len(display_candidates)} of {matching_total} matched (total batch: {total_total:,} entries | {anom_total} anomalies)"
+        )
 
     def _on_entry_selected(self, event):
         selected_items = self.tree_entries.selection()
@@ -1078,18 +1091,35 @@ class DesktopGUI:
         self.fuzz_progress_var.set("Fuzzing campaign completed!")
 
         self.txt_fuzz_results.delete("1.0", tk.END)
+        total_posted = report.get("total_entries_posted", report.get("total_executions", 0))
+        bypasses = report.get("bypass_count", report.get("bypasses_detected", 0))
+        crashes = report.get("crash_count", report.get("crashes_detected", 0))
+        coverage = report.get("rule_coverage_percent", report.get("unique_rules_exercised", 0.0))
+
         lines = [
             f"Campaign Status: COMPLETED",
-            f"Total Executions: {report.get('total_executions', 0)}",
-            f"Bypasses Detected: {report.get('bypasses_detected', 0)}",
-            f"Application Crashes: {report.get('crashes_detected', 0)}",
-            f"Rules Exercised: {report.get('unique_rules_exercised', 0)}",
+            f"Total Entries Posted: {total_posted}",
+            f"Bypasses Detected:    {bypasses}",
+            f"Application Crashes:  {crashes}",
+            f"Rule Coverage:        {coverage:.1f}%",
             f"",
             f"--- Active Mutator Weights ---",
         ]
         weights = report.get("mutator_weights", {})
         for mut, w in weights.items():
             lines.append(f"  {mut:30s}: {w:.4f}")
+
+        top_by = report.get("top_bypass_vectors", [])
+        if top_by:
+            lines.append("\n--- Top Control Bypass Vectors ---")
+            for vec in top_by:
+                lines.append(f"  * {vec}")
+
+        top_cr = report.get("top_crash_vectors", [])
+        if top_cr:
+            lines.append("\n--- Top Server Crash Vectors ---")
+            for vec in top_cr:
+                lines.append(f"  * {vec}")
 
         if report.get("findings"):
             lines.append(f"\n--- Critical Findings ({len(report['findings'])}) ---")
@@ -1128,14 +1158,20 @@ class DesktopGUI:
             self.txt_tax_results.insert(tk.END, f"Error: {report['error']}")
             return
 
+        gross_sales = float(report.get("taxable_sales", report.get("gross_taxable_sales", 0.0)))
+        output_tax = float(report.get("output_tax_collected", report.get("output_tax_due", 0.0)))
+        taxable_purchases = float(report.get("taxable_purchases", 0.0))
+        input_tax = float(report.get("input_tax_deductible", 0.0))
+        net_tax = float(report.get("net_tax_payable", 0.0))
+
         lines = [
             f"Jurisdiction: {report.get('jurisdiction')} | Period: {report.get('period')}",
             f"Currency: {report.get('currency', 'USD')}",
-            f"Gross Taxable Sales:   ${float(report.get('gross_taxable_sales', 0)):,.2f}",
-            f"Output Tax Due:        ${float(report.get('output_tax_due', 0)):,.2f}",
-            f"Input Tax Deductible:  ${float(report.get('input_tax_deductible', 0)):,.2f}",
-            f"Reverse Charge Wash:   ${float(report.get('reverse_charge_tax', 0)):,.2f}",
-            f"Net Tax Payable:       ${float(report.get('net_tax_payable', 0)):,.2f}",
+            f"Taxable Sales:          ${gross_sales:,.2f}",
+            f"Output Tax Collected:   ${output_tax:,.2f}",
+            f"Taxable Purchases:      ${taxable_purchases:,.2f}",
+            f"Input Tax Deductible:   ${input_tax:,.2f}",
+            f"Net Tax Payable:        ${net_tax:,.2f}",
         ]
         self.txt_tax_results.insert(tk.END, "\n".join(lines))
 
@@ -1719,14 +1755,21 @@ class DesktopGUI:
             messagebox.showinfo("Export Notice", "Please generate a legacy stream first.")
             return
         proto = self._last_legacy_data.get("protocol", "legacy").lower()
+        is_bin = self._last_legacy_data.get("is_binary", False)
+        ext = ".bin" if is_bin else ".txt"
         dest = filedialog.asksaveasfilename(
             title="Save Protocol Stream",
-            defaultextension=".txt",
-            initialfile=f"export_{proto}.txt",
+            defaultextension=ext,
+            initialfile=f"export_{proto}{ext}",
         )
         if dest:
-            with open(dest, "w", encoding="utf-8") as f:
-                f.write(self._last_legacy_data.get("preview", ""))
+            file_path_str = self._last_legacy_data.get("file_path")
+            if file_path_str and Path(file_path_str).exists():
+                import shutil
+                shutil.copyfile(file_path_str, dest)
+            else:
+                with open(dest, "w", encoding="utf-8") as f:
+                    f.write(self._last_legacy_data.get("preview", ""))
             messagebox.showinfo("Export Successful", f"Saved to:\n{dest}")
 
     def _initial_load(self):

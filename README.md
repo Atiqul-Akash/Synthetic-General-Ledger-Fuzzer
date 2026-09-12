@@ -3,8 +3,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License" />
-  <img src="https://img.shields.io/badge/Tests-228%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="228 Tests Passed" />
-  <img src="https://img.shields.io/badge/Version-0.5.0%20Enterprise-blueviolet?style=for-the-badge" alt="v0.5.0 Enterprise" />
+  <img src="https://img.shields.io/badge/Tests-294%20Passed-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="294 Tests Passed" />
+  <img src="https://img.shields.io/badge/Version-0.6.0%20Enterprise-blueviolet?style=for-the-badge" alt="v0.6.0 Enterprise" />
   <img src="https://img.shields.io/badge/Double--Entry-Zero--Sum%20Verified-emerald?style=for-the-badge" alt="Double-Entry Invariant" />
   <img src="https://img.shields.io/badge/SOX-404-Compliant-indigo?style=for-the-badge" alt="SOX-404 Compliant" />
   <img src="https://img.shields.io/badge/Author-Atiqul--Akash-orange?style=for-the-badge&logo=github&logoColor=white" alt="Atiqul-Akash" />
@@ -40,6 +40,12 @@
   - [5. Turnkey Infrastructure Orchestration & CLI Cluster Management](#5-turnkey-infrastructure-orchestration--cli-cluster-management)
 - [Autonomous Generative LLM Fraud Agent Framework](#autonomous-generative-llm-fraud-agent-framework)
 - [Legacy Mainframe & Supply Chain EDI Protocol Engine](#legacy-mainframe--supply-chain-edi-protocol-engine)
+- [Five Enterprise Simulation Frontiers (v0.6)](#five-enterprise-simulation-frontiers-v06)
+  - [1. Balance Sheet Subledgers (Fixed Assets & Treasury)](#1-balance-sheet-subledgers-fixed-assets-ias-1636--treasury-ifrs-9)
+  - [2. High-Performance Multi-Core Parallel Engine](#2-high-performance-multi-core-parallel-engine)
+  - [3. Generative Tabular Machine Learning](#3-generative-tabular-machine-learning)
+  - [4. Multi-ERP Master Schemas (Workday, D365, NetSuite, Oracle Cloud)](#4-multi-erp-master-schemas)
+  - [5. Cryptographic Triple-Entry & DLT Consensus Drivers](#5-cryptographic-triple-entry--dlt-consensus-drivers)
 - [Core Business Cycles](#core-business-cycles)
   - [Procure-to-Pay (P2P)](#1-procure-to-pay-p2p)
   - [Order-to-Cash (O2C)](#2-order-to-cash-o2c)
@@ -57,7 +63,7 @@
 - [Dual-Artifact Export Formats](#dual-artifact-export-formats)
 
 - [Automated Forensic Audit Screening (SOX-404)](#automated-forensic-audit-screening)
-- [Automated Test Suite (180 Tests)](#automated-test-suite)
+- [Automated Test Suite (277 Tests)](#automated-test-suite)
 - [Repository Structure](#repository-structure)
 - [Contributing & License](#contributing--license)
 
@@ -298,6 +304,98 @@ Enterprise supply chains and core banking infrastructure often rely on decades-o
   - `HASH_TOTAL_DESYNC`: Modifies routing transit entry hashes to trigger bank clearing rejection.
   - `FIXED_WIDTH_OVERFLOW`: Violates strict 80-char or 94-char fixed-width buffer boundaries.
   - `NULL_BYTE_INJECTION`: Injects raw `0x00` null bytes into payload streams.
+
+---
+
+## Five Enterprise Simulation Frontiers (v0.6)
+
+### 1. Balance Sheet Subledgers (Fixed Assets IAS 16/36 & Treasury IFRS 9)
+*Package: `gl_fuzzer/subledgers/` (`fixed_assets.py`, `treasury.py`)*
+
+Expands beyond operational supply chain subledgers into long-term balance sheet cycles:
+- **Fixed Asset Life Management (`FixedAssetSubledger`)**:
+  - Full support for **IAS 16 Property, Plant & Equipment** and **IFRS 16 Leases** (Right-of-Use assets).
+  - Multiple depreciation engines: **Straight-Line (SL)**, **Double Declining Balance (DDB)**, **Units of Production (UOP)**, and multi-component depreciation with mid-life switches.
+  - **IAS 36 Impairment Testing**: Continuous testing against recoverable amount ($\max(\text{FVLCTS}, \text{VIU})$) with automated balanced write-downs (`Dr 65100 / Cr 17800`).
+  - **Capitalization Threshold Guard**: Automatically expenses purchases below threshold (default: \$2,500) directly to operating expenses (`69000`).
+  - **Multi-Asset Retirement & Derecognition**: Computes exact gain or loss on asset disposal with derecognition of gross cost and accumulated depreciation/impairment.
+  - **IAS 16.31 Revaluation Model**: Revalues carrying values to fair value with balanced equity credit to revaluation surplus (`31000`).
+  - **Calibrated Fraud Mutators**: `ImpairmentOmissionMutator` (write-down suppression), `ZombieAssetMutator` (depreciating scrapped assets), `CapitalizationThresholdEvasionMutator` (smurfing cap-ex below threshold).
+- **Treasury & Debt Facilities (`TreasurySubledger`)**:
+  - Models corporate bonds, syndicated loans, commercial paper, and revolving credit facilities.
+  - **IFRS 9 / ASC 835 Amortized Cost Engine**: Computes exact Effective Interest Rate (EIR) amortizations with balanced vouchers for discount accretion / premium amortization.
+  - **Continuous Debt Covenant Monitoring**: Real-time evaluation of Leverage Ratio ($\text{Debt}/\text{EBITDA} \le 4.5\times$), Interest Coverage ($\text{EBIT}/\text{Interest} \ge 3.0\times$), and Debt-to-Equity ($\le 2.0\times$).
+  - **Derivative Hedging (IAS 39 / IFRS 9)**: Fixed-for-floating Interest Rate Swaps (IRS), Fair Value Hedges (P&L), and Cash Flow Hedges (OCI vs P&L ineffectiveness splits).
+  - **Calibrated Fraud Mutators**: `CovenantSuppressionMutator` (debt-to-equity reclass), `HedgeIneffectivenessConcealment` (hiding ineffectiveness in OCI), `DebtRolloverConcealment` (hiding short-term debt maturity).
+
+---
+
+### 2. High-Performance Multi-Core Parallel Engine
+*Package: `gl_fuzzer/generators/parallel_engine.py`*
+
+Bypasses Python's Global Interpreter Lock (GIL) to saturate all CPU cores for high-volume enterprise dataset generation:
+- **`MultiCoreSynthesisEngine`**:
+  - Leverages `concurrent.futures.ProcessPoolExecutor` with automatic CPU core detection (`os.cpu_count()`).
+  - Windows `spawn`-safe architecture using disjoint deterministic seeds per worker process (`seed + worker_id * 1_000_000`).
+  - Generates partitioned PyArrow Parquet files directly from worker processes for zero-copy streaming disk I/O.
+  - Near-linear throughput speedup ($3.5\times$ to $9\times$ scaling on modern multi-core workstations).
+
+---
+
+### 3. Generative Tabular Machine Learning
+*Package: `gl_fuzzer/ml_generative/` (`gaussian_copula.py`, `tvae_engine.py`)*
+
+Replaces rigid template generation with generative AI models that learn empirical joint distributions of corporate ledgers:
+- **Tier 1: Gaussian Copula Synthesizer (`GaussianCopulaSynthesizer`)**:
+  - Zero-dependency architecture powered by `scipy.stats` and `numpy`.
+  - Estimates empirical marginal CDFs via Probability Integral Transform (PIT) and maps features to standard normal scores $\Phi^{-1}(U)$.
+  - Models multivariate dependencies through covariance matrix $\Sigma$ with Tikhonov regularization.
+  - **Latent Manifold Perturbation**: Perturbs normal scores into low-density tail regions ($\|Z\| > 2.5\sigma$) to synthesize subtle, organic multi-dimensional fraud patterns that evade traditional 1D threshold rules.
+- **Tier 2: Tabular Variational Autoencoder (`TabularVAESynthesizer`)**:
+  - Pure NumPy implementation of TVAE with dense encoder $q_\phi(z|x)$, reparameterization trick $z = \mu + \sigma \odot \epsilon$, and decoder $p_\theta(x|z)$.
+  - Analytical backpropagation and Adam optimizer in pure NumPy.
+  - Synthesizes non-linear, adversarial ledger vouchers from boundary latent manifolds.
+
+---
+
+### 4. Multi-ERP Master Schemas
+*Package: `gl_fuzzer/exporters/`*
+
+Generates native, compliant import payloads for all major enterprise ERP systems:
+- **Workday Accounting Center (`workday_exporter.py`)**:
+  - Workday Web Services (WWS v37.2) SOAP XML: `<bsvc:Submit_Accounting_Journal_Request>` with nested line items.
+  - Workday RaaS (Reporting-as-a-Service) REST JSON payloads.
+  - Full Worktag mapping: `Cost_Center`, `Spend_Category`, `Revenue_Category`, `Fund`, `Region`.
+- **Microsoft Dynamics 365 Finance (`d365_exporter.py`)**:
+  - OData V4 JSON entity payloads: `LedgerJournalTable` and `LedgerJournalTrans`.
+  - Segmented dimension combinations: `AccountDisplayValue` (e.g., `11000-001-CC100-US`).
+  - Multipart `$batch` request packaging (`--batch_...` boundary envelopes).
+- **Oracle NetSuite ERP (`netsuite_exporter.py`)**:
+  - SuiteTalk REST JSON format (`/services/rest/record/v1/journalentry`).
+  - NetSuite CSV Import format with OneWorld multi-subsidiary classifications (`Department`, `Class`, `Location`).
+- **Oracle Financials Cloud (`oracle_fc_exporter.py`)**:
+  - Oracle FBDI (File-Based Data Import) standard `JournalImportTemplate.csv` for `GlInterface` uploads.
+  - Oracle ERP Integration Service REST JSON (`importAndPostJournalBatches`).
+  - 6-segment Accounting Flexfield mapping (`Company`, `CostCenter`, `Account`, `SubAccount`, `Product`, `Intercompany`).
+
+---
+
+### 5. Cryptographic Triple-Entry & DLT Consensus Drivers
+*Package: `gl_fuzzer/dlt/` (`merkle_ledger.py`, `fabric_driver.py`, `evm_driver.py`)*
+
+Triple-entry bookkeeping and decentralized enterprise ledger consensus simulation:
+- **SHA-256 Binary Merkle Ledger (`MerkleLedger`)**:
+  - Generates cryptographic binary Merkle trees over journal vouchers with power-of-2 leaf padding.
+  - Produces $O(\log N)$ inclusion audit proofs ($\pi = \{(\text{sibling}, \text{direction})\}$) verifying whether any transaction was altered in transit.
+  - Emits tamper-evident `TripleEntryReceipt` tokens for external counterparty reconciliation.
+  - Automated ledger audit raises `MerkleIntegrityError` upon single-byte transaction alterations.
+- **Hyperledger Fabric Simulation (`FabricLedgerSimulator`)**:
+  - Models private channels, world state `VersionedValue(value, block_num, tx_num)`, and ReadWriteSets (`RWSet`).
+  - Chaincode execution: `createVoucher`, `transferFunds`, `getBalance`.
+  - Injects and intercepts consensus anomalies: `RWSetVersionConflict` (MVCC phantom read conflicts), `EndorsementPolicyMismatch` (signature quorum failure), and `OutdatedStateCommitment`.
+- **Enterprise EVM Smart Contract Driver (`EVMSmartContractSimulator`)**:
+  - Simulates tokenized settlement smart contracts (ERC-20 / ERC-1155).
+  - Fuzzes smart contract vulnerabilities: **Integer Underflow/Overflow** (pre-0.8 uint256 wrapping), **Reentrancy Exploits** (recursive external call draining), **Gas Limit Exhaustion** (block gas overflow), and **Storage Slot Collisions** (proxy delegatecall corruption).
 
 ---
 
@@ -591,7 +689,7 @@ tests/test_streaming_sinks.py .........                                  [ 90%]
 tests/test_subledgers.py .........                                       [ 94%]
 tests/test_tax.py .............                                          [100%]
 
-============================ 228 passed in 12.38s =============================
+============================ 277 passed in 18.00s =============================
 ```
 
 ---
@@ -601,7 +699,7 @@ tests/test_tax.py .............                                          [100%]
 ```
 Synthetic-General-Ledger-Fuzzer/
 ├── gl_fuzzer/
-│   ├── __init__.py                # Package root (v0.4.0 Enterprise)
+│   ├── __init__.py                # Package root (v0.6.0 Enterprise)
 │   ├── cli.py                     # Typer / Rich CLI with cluster management & legacy tools
 │   ├── web_gui.py                 # Modern browser dashboard with LLM Studio & Legacy panels
 │   ├── desktop_gui.py             # Native offline Tkinter GUI (8 tabs, Thread-safe)
@@ -647,10 +745,28 @@ Synthetic-General-Ledger-Fuzzer/
 │   │   ├── sql_target.py          # SQLite relational target with ACID constraints
 │   │   ├── oracle.py              # Crash monitor, coverage oracle, vulnerability findings
 │   │   └── adaptive_fuzzer.py     # Adaptive mutators, feedback reinforcement, campaign runner
-│   ├── subledgers/                # [Pillar 4] Operational Logistics & Stateful Subledgers
+│   ├── subledgers/                # [Pillar 4] Operational Logistics & Balance Sheet Subledgers
+│   │   ├── fixed_assets.py        # [Frontier 1] IAS 16/36 fixed assets, depreciation (SL/DDB/UOP), impairment
+│   │   ├── treasury.py            # [Frontier 1] IFRS 9 debt facilities, EIR amortized cost, covenants, IRS hedges
 │   │   ├── inventory.py           # Material Master, moving average price (MAP), bin stock
 │   │   ├── three_way_match.py     # 3-Way Match (PO -> GR/WE -> IR/RE), price variance (PPV)
 │   │   └── order_fulfillment.py   # Sales Order fulfillment, delivery (GI/WA), COGS calculation
+│   ├── generators/                # Core Synthesis & Parallel Engines
+│   │   ├── parallel_engine.py     # [Frontier 2] High-performance multi-core ProcessPool parallel generation
+│   │   ├── distributions.py       # Benford, LogNormal, BusinessCalendar sampling
+│   │   ├── macro_calendar.py      # Macro-economic calendar & quarterly seasonality
+│   │   ├── streaming_engine.py    # Chunked synthesis engine (Zero-OOM, streaming hook)
+│   │   ├── p2p_cycle.py           # Procure-to-Pay generator (WE, KR, RE, KZ payment)
+│   │   ├── o2c_cycle.py           # Order-to-Cash generator (WA, DR, DZ, single customer)
+│   │   ├── r2r_cycle.py           # Record-to-Report (Depreciation, Payroll, Accrual)
+│   │   └── base_engine.py         # Master synthesis engine with dependency injection
+│   ├── ml_generative/             # [Frontier 3] Generative Tabular Machine Learning
+│   │   ├── gaussian_copula.py     # Tier 1 multivariate Gaussian Copula synthesizer & latent perturbation
+│   │   └── tvae_engine.py         # Tier 2 Tabular Variational Autoencoder (pure NumPy backprop)
+│   ├── dlt/                       # [Frontier 5] Cryptographic Triple-Entry & DLT Consensus Drivers
+│   │   ├── merkle_ledger.py       # SHA-256 binary Merkle tree, inclusion proofs, Triple-Entry receipts
+│   │   ├── fabric_driver.py       # Hyperledger Fabric MVCC RWSet & consensus conflict fuzzer
+│   │   └── evm_driver.py          # Enterprise EVM smart contract ERC-20/1155 settlement fuzzer
 │   ├── streaming/                 # [Pillar 5] Real-Time Event Streaming Sinks
 │   │   ├── base.py                # Abstract GLStreamPublisher & StreamPublishResult
 │   │   ├── serializers.py         # JSON, CloudEvents v1.0, and SAP ACDOCA serializers
@@ -661,14 +777,6 @@ Synthetic-General-Ledger-Fuzzer/
 │   │   ├── journal.py             # LineItem, JournalEntry, Batch (Multi-currency balance)
 │   │   ├── currency.py            # Currency enum (12 currencies) & ExchangeRateProvider
 │   │   └── manifest.py            # AnomalyRecord, GroundTruthManifest, SOXControlRef
-│   ├── generators/                # Core Synthesis Generators
-│   │   ├── distributions.py       # Benford, LogNormal, BusinessCalendar sampling
-│   │   ├── macro_calendar.py      # Macro-economic calendar & quarterly seasonality
-│   │   ├── streaming_engine.py    # Chunked synthesis engine (Zero-OOM, streaming hook)
-│   │   ├── p2p_cycle.py           # Procure-to-Pay generator (WE, KR, RE, KZ payment)
-│   │   ├── o2c_cycle.py           # Order-to-Cash generator (WA, DR, DZ, single customer)
-│   │   ├── r2r_cycle.py           # Record-to-Report (Depreciation, Payroll, Accrual)
-│   │   └── base_engine.py         # Master synthesis engine with dependency injection
 │   ├── anomalies/                 # Calibrated Micro-Anomaly Library
 │   │   ├── base_mutator.py        # Abstract base class for mutators
 │   │   ├── smurfing.py            # Split approval DOA bypass
@@ -680,20 +788,24 @@ Synthetic-General-Ledger-Fuzzer/
 │   ├── verification/              # Invariant & Audit Verification
 │   │   ├── invariants.py          # Strict double-entry balance verifier (Doc, Local, Group)
 │   │   └── audit_metrics.py       # SOX-404 automated audit detection (10 forensic methods)
-│   └── exporters/                 # Output Deliverable Exporters
+│   └── exporters/                 # Output Deliverable Exporters (Multi-ERP)
+│       ├── workday_exporter.py    # [Frontier 4] Workday Accounting Center SOAP XML & RaaS JSON
+│       ├── d365_exporter.py       # [Frontier 4] Dynamics 365 OData V4 JSON & multipart $batch envelopes
+│       ├── netsuite_exporter.py   # [Frontier 4] NetSuite SuiteTalk REST JSON & CSV Import template
+│       ├── oracle_fc_exporter.py  # [Frontier 4] Oracle Financials Cloud FBDI CSV & REST integration
 │       ├── parquet_exporter.py    # PyArrow Decimal128 Parquet exporter
 │       ├── streaming_parquet.py   # Zero-OOM streaming row-group Parquet writer
 │       ├── acdoca_exporter.py     # SAP S/4HANA Universal Journal 50+ column exporter
 │       ├── csv_exporter.py        # RFC 4180 CSV exporter (None-safe)
 │       ├── sap_bseg_exporter.py   # SAP BKPF / BSEG table exporter
 │       └── manifest_exporter.py   # JSON & Parquet ground-truth manifest exporter
-├── docker/                        # [Frontier 5] Container Definitions & Mock Services
+├── docker/                        # Container Definitions & Mock Services
 │   ├── Dockerfile.fuzzer          # GL-Fuzzer container definition
 │   ├── Dockerfile.mock_sap        # Mock SAP S/4HANA gateway service container
 │   └── mock_sap_service.py        # Mock OData V4 HTTP server
 ├── docker-compose.yml             # Redpanda Kafka, Mock SAP, LocalStack Kinesis compose
-├── tests/                         # 228 automated unit, regression, and integration tests
-├── pyproject.toml                 # Project configuration, dependencies, and v0.5.0 metadata
+├── tests/                         # 277 automated unit, regression, and integration tests
+├── pyproject.toml                 # Project configuration, dependencies, and v0.6.0 metadata
 ├── run.bat                        # Windows 1-click launcher
 ├── run.py                         # Cross-platform interactive launcher
 ├── LICENSE                        # MIT License

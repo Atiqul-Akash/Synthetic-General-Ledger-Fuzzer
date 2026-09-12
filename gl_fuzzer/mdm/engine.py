@@ -107,12 +107,18 @@ class MasterDataManager:
                 v1 = vendor_list[i]
                 v2 = vendor_list[j]
                 ratio = difflib.SequenceMatcher(None, v1.name.lower(), v2.name.lower()).ratio()
-                if ratio >= 0.85 and v1.bank_account_number != v2.bank_account_number:
+                if ratio >= 0.85:
+                    same_bank = (v1.bank_account_number == v2.bank_account_number)
                     flagged_sybils.append({
                         "vendor_1": {"id": v1.vendor_id, "name": v1.name},
                         "vendor_2": {"id": v2.vendor_id, "name": v2.name},
                         "similarity_score": round(ratio, 4),
-                        "reason": "High name similarity with disparate bank routing",
+                        "shared_bank_account": same_bank,
+                        "reason": (
+                            "High name similarity with shared bank account — high fraud risk"
+                            if same_bank
+                            else "High name similarity with disparate bank routing"
+                        ),
                     })
 
         # 2. Employee collusion cross-check

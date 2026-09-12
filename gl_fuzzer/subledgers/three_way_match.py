@@ -208,10 +208,15 @@ class ThreeWayMatchingEngine:
 
         # Valuation legs
         gr_base_price = po.po_unit_price
-        gr_clearing_qty = min(inv_qty_dec, gr.received_qty) if gr is not None else inv_qty_dec
+        gr_clearing_qty = min(inv_qty_dec, gr.received_qty) if gr is not None else Decimal("0")
         gr_clearing_amount = (gr_clearing_qty * gr_base_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         total_vendor_due = (inv_qty_dec * inv_price_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        ppv_delta = total_vendor_due - gr_clearing_amount
+        # True Purchase Price Variance: only on the matched quantity, only due to unit price delta
+        price_delta_per_unit = inv_price_dec - po.po_unit_price
+        ppv_delta = (gr_clearing_qty * price_delta_per_unit).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        # Quantity variance: cost of invoiced quantity that exceeds goods received (at invoiced price)
+        excess_qty = max(Decimal("0"), inv_qty_dec - (gr.received_qty if gr else Decimal("0")))
+        qty_variance_delta = (excess_qty * inv_price_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         lines = [
             # Leg 1: Clear GR/IR Account at standard PO expected cost
@@ -230,41 +235,64 @@ class ThreeWayMatchingEngine:
             )
         ]
 
-        # Leg 2: Price Variance (PPV) allocation if price discrepancy exists
-        if ppv_delta > Decimal("0.00"):
+        # Leg 2a: Price Variance (PPV) — unit price difference on matched qty
+        PRICE_TOLERANCE = Decimal("0.01")
+        if abs(ppv_delta) > PRICE_TOLERANCE:
+            if ppv_delta > Decimal("0.00"):
+                lines.append(
+                    LineItem(
+                        line_id=f"{doc_num}_2a",
+                        entry_id=doc_num,
+                        line_number=2,
+                        account_code="52100",
+                        account_name="Purchase Price Variance - Materials",
+                        debit_credit=DebitCredit.DEBIT,
+                        amount=ppv_delta,
+                        posting_key="40",
+                        cost_center="CC_MFG",
+                        vendor_id=po.vendor_id,
+                        line_text=f"PPV Unfavorable Variance PO {po.po_number}",
+                    )
+                )
+            else:
+                lines.append(
+                    LineItem(
+                        line_id=f"{doc_num}_2a",
+                        entry_id=doc_num,
+                        line_number=2,
+                        account_code="52100",
+                        account_name="Purchase Price Variance - Materials",
+                        debit_credit=DebitCredit.CREDIT,
+                        amount=abs(ppv_delta),
+                        posting_key="50",
+                        cost_center="CC_MFG",
+                        vendor_id=po.vendor_id,
+                        line_text=f"PPV Favorable Variance PO {po.po_number}",
+                    )
+                )
+
+        # Leg 2b: Quantity Variance — invoice exceeds GR; booked to separate QV account
+        if qty_variance_delta > Decimal("0.00"):
             lines.append(
                 LineItem(
-                    line_id=f"{doc_num}_2",
+                    line_id=f"{doc_num}_2b",
                     entry_id=doc_num,
-                    line_number=2,
-                    account_code="52100",
-                    account_name="Purchase Price Variance - Materials",
+                    line_number=len(lines) + 1,
+                    account_code="52200",
+                    account_name="Invoice Quantity Variance",
                     debit_credit=DebitCredit.DEBIT,
-                    amount=ppv_delta,
+                    amount=qty_variance_delta,
                     posting_key="40",
                     cost_center="CC_MFG",
                     vendor_id=po.vendor_id,
-                    line_text=f"PPV Unfavorable Variance PO {po.po_number}",
-                )
-            )
-        elif ppv_delta < Decimal("0.00"):
-            lines.append(
-                LineItem(
-                    line_id=f"{doc_num}_2",
-                    entry_id=doc_num,
-                    line_number=2,
-                    account_code="52100",
-                    account_name="Purchase Price Variance - Materials",
-                    debit_credit=DebitCredit.CREDIT,
-                    amount=abs(ppv_delta),
-                    posting_key="50",
-                    cost_center="CC_MFG",
-                    vendor_id=po.vendor_id,
-                    line_text=f"PPV Favorable Variance PO {po.po_number}",
+                    line_text=f"Qty Variance PO {po.po_number} ({excess_qty} units over GR)",
                 )
             )
 
-        # Leg 3: Credit Accounts Payable - Trade
+        # Leg 3: Credit Accounts Payable - Trade (full vendor invoice amount)
+        # Debit legs: GR/IR(matched_qty×PO_price) + PPV(matched_qty×price_delta) + QV(excess_qty×inv_price)
+        # = gr_clearing_qty×PO_price + gr_clearing_qty×(inv_price-PO_price) + excess_qty×inv_price
+        # = gr_clearing_qty×inv_price + excess_qty×inv_price = total_vendor_due ✓
         lines.append(
             LineItem(
                 line_id=f"{doc_num}_3",

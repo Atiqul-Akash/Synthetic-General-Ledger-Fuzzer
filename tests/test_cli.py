@@ -139,3 +139,31 @@ def test_cli_legacy_export_and_fuzz(tmp_path: Path):
     assert "HASH_TOTAL_DESYNC" in res_fuzz.output
 
 
+def test_cli_multicore_generate(tmp_path: Path):
+    out_dir = tmp_path / "mc_out"
+    res = runner.invoke(app, ["multicore-generate", "--count", "50", "--workers", "2", "--out-dir", str(out_dir)])
+    assert res.exit_code == 0
+    assert "Multi-Core Parallel Execution Summary" in res.output
+    assert len(list(out_dir.glob("*.parquet"))) > 0
+
+
+def test_cli_generative_ml(tmp_path: Path):
+    out_dir = tmp_path / "ml_out"
+    res = runner.invoke(app, ["generative-ml", "--count", "10", "--model", "copula", "--out-dir", str(out_dir)])
+    assert res.exit_code == 0
+    assert "Generative ML Output (COPULA)" in res.output
+
+
+def test_cli_erp_export(tmp_path: Path):
+    out_dir = tmp_path / "erp_out"
+    res = runner.invoke(app, ["erp-export", "--erp", "workday", "--count", "5", "--out-dir", str(out_dir)])
+    assert res.exit_code == 0
+    assert "WORKDAY_SOAP_XML" in res.output
+
+
+def test_cli_dlt_verify(tmp_path: Path):
+    out_dir = tmp_path / "dlt_out"
+    res = runner.invoke(app, ["dlt-verify", "--count", "10", "--out-dir", str(out_dir)])
+    assert res.exit_code == 0
+    assert "Cryptographic Triple-Entry Ledger Report" in res.output
+    assert (out_dir / "sample_triple_entry_receipt.json").exists()

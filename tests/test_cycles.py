@@ -47,6 +47,7 @@ def test_p2p_full_flow(test_setup):
     assert pay.document_type.value == "KZ"
     assert pay.is_balanced
     assert pay.lines[0].account_code == "20000"  # Settle AP
+    assert pay.lines[0].clearing_doc == ir.document_number
     assert pay.lines[1].account_code == "10100"  # Cash
 
 
@@ -78,6 +79,33 @@ def test_o2c_full_flow(test_setup):
     assert pay.document_type.value == "DZ"
     assert pay.is_balanced
     assert pay.lines[0].amount == Decimal("10600.00")
+    assert pay.lines[1].clearing_doc == bill.document_number
+
+
+def test_o2c_generate_customer_payment(test_setup):
+    coa, calendar, amount_gen, rng = test_setup
+    o2c = O2CCycleGenerator(coa=coa, calendar=calendar, amount_gen=amount_gen, rng=rng)
+
+    billing = o2c.generate_single_customer_invoice(batch_id="TEST_B1", customer="CUST_ACME", amount=Decimal("4500.00"))
+    assert billing.document_type.value == "DR"
+
+    payment = o2c.generate_customer_payment(batch_id="TEST_B1", billing_entry=billing)
+    assert payment.document_type.value == "DZ"
+    assert payment.is_balanced
+    assert payment.lines[0].amount == Decimal("4500.00")
+    assert payment.lines[1].account_code == "11000"
+    assert payment.lines[1].clearing_doc == billing.document_number
+    assert payment.lines[1].customer_id == "CUST_ACME"
+
+
+def test_calendar_snap_to_weekday(test_setup):
+    from datetime import date
+    coa, calendar, amount_gen, rng = test_setup
+    # Saturday 2026-01-03 should snap to Monday 2026-01-05
+    sat = date(2026, 1, 3)
+    weekday = calendar.snap_to_weekday(sat)
+    assert weekday.weekday() < 5
+    assert weekday == date(2026, 1, 5)
 
 
 def test_r2r_periodic_entries(test_setup):

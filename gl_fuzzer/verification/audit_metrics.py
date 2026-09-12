@@ -98,7 +98,12 @@ class ForensicAuditEvaluator:
                     try:
                         dt = datetime.fromisoformat(entry.created_at.replace("Z", "+00:00"))
                     except Exception:
-                        dt = datetime.strptime(f"{entry.posting_date} {entry.entry_time}", "%Y-%m-%d %H:%M:%S")
+                        pd = str(entry.posting_date) if entry.posting_date else "2026-01-01"
+                        et = str(entry.entry_time) if entry.entry_time else "00:00:00"
+                        try:
+                            dt = datetime.strptime(f"{pd} {et}", "%Y-%m-%d %H:%M:%S")
+                        except (ValueError, TypeError):
+                            dt = datetime(2026, 1, 1, 0, 0, 0)
                     if dt.tzinfo is not None:
                         dt = dt.replace(tzinfo=None)
                     vendor_items[line.vendor_id].append({
@@ -198,7 +203,7 @@ class ForensicAuditEvaluator:
                     "header_text": entry.header_text,
                 })
 
-        ghost_count = sum(1 for e in flagged_entries if e["is_deep_night"] or "DORMANT" in e.get("created_by", "") or "OVERRIDE" in e.get("header_text", "") or "GHOST" in e.get("header_text", ""))
+        ghost_count = sum(1 for e in flagged_entries if e["is_deep_night"] or "DORMANT" in (e.get("created_by") or "") or "OVERRIDE" in (e.get("header_text") or "") or "GHOST" in (e.get("header_text") or ""))
         off_hours_count = sum(1 for e in flagged_entries if e["is_deep_night"])
         weekend_count = sum(1 for e in flagged_entries if e["is_weekend"])
 

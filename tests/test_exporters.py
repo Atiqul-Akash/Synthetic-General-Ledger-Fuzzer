@@ -63,6 +63,14 @@ def test_sap_bseg_export(tmp_path: Path, sample_batch: Batch):
     assert len(bkpf_hash) == 64
     assert len(bseg_hash) == 64
 
+    import csv
+    with open(bseg_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        row = next(reader)
+        assert "DMBTR" in row
+        assert "HWAER" in row
+        assert "MWSKZ" in row
+
 
 def test_manifest_export(tmp_path: Path):
     manifest = GroundTruthManifest(

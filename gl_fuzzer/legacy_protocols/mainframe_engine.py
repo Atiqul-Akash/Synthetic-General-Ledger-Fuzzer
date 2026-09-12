@@ -29,7 +29,11 @@ def pack_comp3(val: int, num_bytes: int, signed: bool = True) -> bytes:
     max_digits = (num_bytes * 2) - 1
     s_digits = s_digits.zfill(max_digits)
     if len(s_digits) > max_digits:
-        s_digits = s_digits[-max_digits:]
+        raise OverflowError(
+            f"pack_comp3: value {val} requires {len(str(abs_val))} digits "
+            f"but num_bytes={num_bytes} only holds {max_digits}. "
+            "Increase num_bytes to avoid financial data corruption."
+        )
 
     # Append sign nibble
     nibbles = [int(d) for d in s_digits] + [sign_nibble]

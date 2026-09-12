@@ -64,49 +64,54 @@ class AdaptiveMutator:
         return str(self.rng.choice(ops, p=probs))
 
     def mutate_entry(self, entry: JournalEntry) -> JournalEntry:
-        """Applies a targeted mutation vector to an entry based on active weights."""
+        """Applies a targeted mutation vector to a deep copy of the entry based on active weights."""
+        import copy
+        entry = copy.deepcopy(entry)
         op = self.select_operator()
+
+        def _tag(anomaly_value: str) -> None:
+            entry.is_anomaly = True
+            if entry.anomaly_ids is None:
+                entry.anomaly_ids = []
+            entry.anomaly_ids.append(anomaly_value)
 
         if op == "SQL_INJECTION":
             entry.header_text = "Vendor Settlement'; DROP TABLE line_items;--"
-            entry.is_anomaly = True
-            entry.anomaly_ids.append(AnomalyType.SECURITY_FUZZ_CRASH.value)
+            _tag(AnomalyType.SECURITY_FUZZ_CRASH.value)
 
         elif op == "UNICODE_OVERFLOW":
             entry.header_text = "OVERFLOW_TEST_" + ("🚀🔥💥📈" * 150)
-            entry.is_anomaly = True
-            entry.anomaly_ids.append(AnomalyType.SECURITY_FUZZ_CRASH.value)
+            _tag(AnomalyType.SECURITY_FUZZ_CRASH.value)
 
         elif op == "NULL_BYTE_INJECTION":
             entry.header_text = "Vendor Payment\x00ADMIN_OVERRIDE"
-            entry.is_anomaly = True
-            entry.anomaly_ids.append(AnomalyType.SECURITY_FUZZ_CRASH.value)
+            _tag(AnomalyType.SECURITY_FUZZ_CRASH.value)
 
         elif op == "BOUNDARY_DOA":
-            # Set to $9,999.99 (just under standard $10,000 approval limit)
+            # Set to $9,999.99 (just under standard $10,000 approval limit).
+            # To preserve double-entry balance, scale ALL lines by the same ratio.
             boundary_amt = Decimal("9999.99")
-            if len(entry.lines) >= 2:
-                entry.lines[0].amount = boundary_amt
-                entry.lines[1].amount = boundary_amt
-                if entry.lines[0].amount_local is not None:
-                    entry.lines[0].amount_local = boundary_amt
-                if entry.lines[1].amount_local is not None:
-                    entry.lines[1].amount_local = boundary_amt
-            entry.is_anomaly = True
-            entry.anomaly_ids.append(AnomalyType.SMURFING_SPLIT_APPROVAL.value)
+            if entry.lines:
+                original_total = entry.total_debits  # debits == credits on a balanced entry
+                if original_total and original_total != Decimal("0"):
+                    scale = boundary_amt / original_total
+                    for line in entry.lines:
+                        line.amount = (line.amount * scale).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                        if line.amount_local is not None:
+                            line.amount_local = (line.amount_local * scale).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                        if line.amount_group is not None:
+                            line.amount_group = (line.amount_group * scale).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            _tag(AnomalyType.SMURFING_SPLIT_APPROVAL.value)
 
         elif op == "CLOSED_PERIOD_PROBE":
             entry.fiscal_period = 13
-            entry.is_anomaly = True
-            entry.anomaly_ids.append(AnomalyType.OFF_HOURS_GHOST_ENTRY.value)
+            _tag(AnomalyType.OFF_HOURS_GHOST_ENTRY.value)
 
         elif op == "WHT_EVASION":
-            entry.is_anomaly = True
-            entry.anomaly_ids.append(AnomalyType.TAX_EVASION_ZERO_WHT.value)
+            _tag(AnomalyType.TAX_EVASION_ZERO_WHT.value)
 
         elif op == "PHANTOM_PO":
-            entry.is_anomaly = True
-            entry.anomaly_ids.append(AnomalyType.PHANTOM_PO_THREE_WAY_BYPASS.value)
+            _tag(AnomalyType.PHANTOM_PO_THREE_WAY_BYPASS.value)
 
         elif op == "NON_POSITIVE_AMOUNT":
             for line in entry.lines:
@@ -115,9 +120,7 @@ class AdaptiveMutator:
                     line.amount_local = Decimal("0.00")
                 if line.amount_group is not None:
                     line.amount_group = Decimal("0.00")
-            entry.is_anomaly = True
-            entry.anomaly_ids.append(AnomalyType.SECURITY_FUZZ_CRASH.value)
-
+            _tag(AnomalyType.SECURITY_FUZZ_CRASH.value)
 
         return entry
 

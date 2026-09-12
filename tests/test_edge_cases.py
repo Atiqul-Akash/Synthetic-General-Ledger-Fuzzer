@@ -637,3 +637,103 @@ def test_pdf_invoice_courier_fonts(tmp_path: Path):
     assert b"/BaseFont /Courier" in content
     assert b"Helvetica" not in content
 
+
+def test_currency_consistency_in_is_balanced():
+    """Verify that an entry with mismatched currencies fails is_balanced and is_currency_consistent."""
+    entry = JournalEntry(
+        entry_id="DOC_MIX_CURR",
+        batch_id="B1",
+        company_code="1000",
+        document_number="100002",
+        posting_date="2026-05-10",
+        document_date="2026-05-10",
+        created_at="2026-05-10T10:00:00Z",
+        lines=[
+            LineItem(
+                line_id="L1",
+                entry_id="DOC_MIX_CURR",
+                line_number=1,
+                account_code="10100",
+                debit_credit=DebitCredit.DEBIT,
+                amount=Decimal("100.00"),
+                currency="USD",
+            ),
+            LineItem(
+                line_id="L2",
+                entry_id="DOC_MIX_CURR",
+                line_number=2,
+                account_code="40000",
+                debit_credit=DebitCredit.CREDIT,
+                amount=Decimal("100.00"),
+                currency="EUR",
+            ),
+        ],
+    )
+    assert entry.is_currency_consistent is False
+    assert entry.is_balanced is False
+    assert entry.balance_delta == Decimal("0.00")
+
+
+def test_tax_engine_multi_currency_triad():
+    """Verify that TaxLocalizationEngine preserves foreign currency and exchange rates."""
+    from gl_fuzzer.tax.engine import TaxLocalizationEngine, TaxJurisdiction
+    tax_eng = TaxLocalizationEngine()
+    entry = JournalEntry(
+        entry_id="DOC_TAX_FX",
+        batch_id="B1",
+        company_code="1000",
+        document_number="100003",
+        posting_date="2026-06-15",
+        document_date="2026-06-15",
+        created_at="2026-06-15T10:00:00Z",
+        lines=[
+            LineItem(
+                line_id="L1",
+                entry_id="DOC_TAX_FX",
+                line_number=1,
+                account_code="11000",
+                debit_credit=DebitCredit.DEBIT,
+                amount=Decimal("100.00"),
+                currency="EUR",
+                exchange_rate_local=Decimal("1.100000"),
+                exchange_rate_group=Decimal("1.000000"),
+                amount_local=Decimal("110.00"),
+                amount_group=Decimal("110.00"),
+            ),
+            LineItem(
+                line_id="L2",
+                entry_id="DOC_TAX_FX",
+                line_number=2,
+                account_code="40000",
+                debit_credit=DebitCredit.CREDIT,
+                amount=Decimal("100.00"),
+                currency="EUR",
+                exchange_rate_local=Decimal("1.100000"),
+                exchange_rate_group=Decimal("1.000000"),
+                amount_local=Decimal("110.00"),
+                amount_group=Decimal("110.00"),
+            ),
+        ],
+    )
+    res = tax_eng.apply_tax_to_entry(entry, jurisdiction=TaxJurisdiction.GLOBAL, is_purchase=False)
+    assert len(res.lines) == 3
+    tax_line = res.lines[2]
+    assert tax_line.currency == "EUR"
+    assert tax_line.exchange_rate_local == Decimal("1.100000")
+    assert tax_line.amount == Decimal("6.00")
+    assert tax_line.amount_local == Decimal("6.60")
+    # Reconciliation line (AR) should be updated with tax amount and converted with rate
+    ar_line = res.lines[0]
+    assert ar_line.amount == Decimal("106.00")
+    assert ar_line.amount_local == Decimal("116.60")
+
+
+def test_empty_batch_anomaly_pipeline():
+    """Verify that AnomalyPipeline handles an empty batch gracefully."""
+    empty_batch = Batch(batch_id="EMPTY", created_at="2026-01-01T00:00:00Z", entries=[])
+    pipeline = AnomalyPipeline()
+    records = pipeline.inject_anomalies(empty_batch)
+    assert records == []
+    assert len(empty_batch.entries) == 0
+
+

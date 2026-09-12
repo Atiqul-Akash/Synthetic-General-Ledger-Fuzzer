@@ -46,7 +46,9 @@ class AnomalyPipeline:
         overall_anomaly_rate: float = 0.05,
         rates_per_type: Optional[Dict[AnomalyType, float]] = None,
     ) -> List[AnomalyRecord]:
-        """Runs the mutator pipeline on the given batch and returns all generated AnomalyRecords."""
+        if not batch.entries:
+            return []
+
         all_records: List[AnomalyRecord] = []
         self.context.base_entry_count = len(batch.entries)
         rates = rates_per_type or {}
@@ -55,11 +57,20 @@ class AnomalyPipeline:
         default_per_mutator = overall_anomaly_rate / max(1, len(self.mutators))
 
         for mutator in self.mutators:
-            rate = rates.get(mutator.anomaly_type, default_per_mutator)
+            rate = rates.get(
+                mutator.anomaly_type,
+                rates.get(
+                    mutator.anomaly_type.value,
+                    rates.get(mutator.anomaly_type.name, default_per_mutator),
+                ),
+            )
             if rate <= 0.0:
                 continue
 
             records = mutator.mutate(batch=batch, context=self.context, injection_rate=rate)
             all_records.extend(records)
+
+        # Guarantee chronologically interleaved timeline across base and appended anomalies
+        batch.entries.sort(key=lambda e: (e.posting_date or "", getattr(e, "entry_time", "00:00:00") or "00:00:00"))
 
         return all_records

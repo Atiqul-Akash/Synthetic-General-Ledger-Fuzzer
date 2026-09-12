@@ -67,6 +67,24 @@ from gl_fuzzer.legacy_protocols import (
     MainframeEngine,
     ProtocolFuzzAnomaly,
 )
+from gl_fuzzer.generators.parallel_engine import MultiCoreSynthesisEngine
+from gl_fuzzer.ml_generative import GaussianCopulaSynthesizer, TabularVAESynthesizer
+from gl_fuzzer.exporters import (
+    WorkdayExporter,
+    D365Exporter,
+    NetSuiteExporter,
+    OracleFCExporter,
+)
+from gl_fuzzer.dlt import (
+    MerkleLedger,
+    FabricLedgerSimulator,
+    EVMSmartContractSimulator,
+    RWSetVersionConflict,
+)
+from gl_fuzzer.subledgers.fixed_assets import FixedAssetSubledger, AssetClass
+from gl_fuzzer.subledgers.treasury import TreasurySubledger, FacilityType
+from gl_fuzzer.subledgers.fx_revaluation import ForeignCurrencyValuationEngine
+
 
 app = typer.Typer(help="Synthetic General Ledger Fuzzer & Calibrated Anomaly Engine | Made with <3 by Atiqul-Akash (GitHub: Atiqul-Akash)")
 console = Console()
@@ -91,6 +109,7 @@ def generate(
     stream_target: Optional[str] = typer.Option(None, "--stream-target", help="Real-time streaming target: kafka, kinesis, eventhub"),
     stream_topic: str = typer.Option("gl.transactions.v1", "--stream-topic", help="Streaming topic name"),
     stream_rate: Optional[int] = typer.Option(None, "--stream-rate", help="Max streaming rate in events per second"),
+    fagl_fcv: bool = typer.Option(False, "--fagl-fcv", help="Run SAP FAGL_FCV month-end foreign currency valuation and Day-1 reversal runs"),
 ):
     """Synthesizes balanced GL batches, injects calibrated micro-anomalies, and exports dual artifacts."""
     console.print(Panel.fit(
@@ -178,6 +197,7 @@ def generate(
             batch_entries.extend(c_entries)
             anomaly_records.extend(c_anoms)
 
+        batch_entries.sort(key=lambda e: (e.posting_date, getattr(e, "entry_time", "00:00:00") or "00:00:00"))
         batch_id = f"BATCH_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         batch = Batch(batch_id=batch_id, created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), entries=batch_entries)
     else:
@@ -199,10 +219,26 @@ def generate(
         anomaly_records = pipeline.inject_anomalies(batch=batch, overall_anomaly_rate=anomaly_rate)
 
     # Apply Withholding Tax to vendor disbursements if enabled
-    if enable_wht and tax_eng:
-        for entry in batch.entries:
-            if entry.document_type == DocumentType.KZ:
-                tax_eng.wht_engine.apply_wht_to_payment_entry(entry)
+    if enable_wht:
+        if tax_eng:
+            for entry in batch.entries:
+                if entry.document_type == DocumentType.KZ:
+                    tax_eng.wht_engine.apply_wht_to_payment_entry(entry)
+        else:
+            from gl_fuzzer.tax.withholding import WithholdingTaxEngine
+            wht_engine = WithholdingTaxEngine()
+            for entry in batch.entries:
+                if entry.document_type == DocumentType.KZ:
+                    wht_engine.apply_wht_to_payment_entry(entry)
+
+    # Apply SAP FAGL_FCV month-end foreign currency valuation if enabled
+    if fagl_fcv:
+        console.print("[cyan][FCV] Running SAP FAGL_FCV Foreign Currency Valuation across open items...[/cyan]")
+        fcv_engine = ForeignCurrencyValuationEngine(coa=coa, seed=seed)
+        fcv_entries = fcv_engine.generate_synthetic_fcv_run(batch_id=batch.batch_id, company_code="1000", post_auto_reversal=True)
+        batch.entries.extend(fcv_entries)
+        batch.entries.sort(key=lambda e: (e.posting_date, getattr(e, "entry_time", "00:00:00") or "00:00:00"))
+        console.print(f"[bold green][PASS] FAGL_FCV Completed:[/bold green] Synthesized {len(fcv_entries)} valuation and Day-1 reversal vouchers.")
 
     # 3. Mathematical Invariant Verification Gate
     console.print("[blue][Step 3] Invariant Gate: Verifying Debits == Credits across all batches and entries...[/blue]")
@@ -1153,6 +1189,231 @@ def legacy_fuzz(
     console.print(table)
 
 
+@app.command("multicore-generate")
+def cmd_multicore_generate(
+    count: int = typer.Option(2000, "--count", "-n", help="Number of entries to generate across cores"),
+    workers: Optional[int] = typer.Option(None, "--workers", "-w", help="Number of worker processes (default: CPU count)"),
+    out_dir: Path = typer.Option(Path("./gl_output/multicore"), "--out-dir", "-o", help="Output directory"),
+    seed: int = typer.Option(42, "--seed", "-s", help="Base seed"),
+):
+    """High-performance parallel generation across multiple CPU cores."""
+    console.print(Panel.fit("[bold cyan]High-Performance Multi-Core Parallel Synthesis Engine[/bold cyan]"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    engine = MultiCoreSynthesisEngine(max_workers=workers, base_seed=seed)
+
+    t0 = time.perf_counter()
+    partition_paths = engine.generate_to_parquet(target_entry_count=count, output_dir=out_dir)
+    elapsed = max(0.001, time.perf_counter() - t0)
+    eps = count / elapsed
+
+    table = Table(title="[bold green]Multi-Core Parallel Execution Summary[/bold green]")
+    table.add_column("Worker Cores", justify="center")
+    table.add_column("Total Entries", justify="right")
+    table.add_column("Partitions Created", justify="center")
+    table.add_column("Time Elapsed", justify="right")
+    table.add_column("Throughput (eps)", justify="right", style="bold green")
+
+    table.add_row(
+        str(engine.max_workers),
+        f"{count:,}",
+        str(len(partition_paths)),
+        f"{elapsed:.2f}s",
+        f"{eps:,.1f} eps",
+    )
+    console.print(table)
+    console.print(f"[cyan]Partition files written to: {out_dir.resolve()}[/cyan]")
+
+
+@app.command("generative-ml")
+def cmd_generative_ml(
+    count: int = typer.Option(100, "--count", "-n", help="Number of synthetic vouchers to generate"),
+    model: str = typer.Option("copula", "--model", "-m", help="Generative model: 'copula' (Gaussian Copula) or 'tvae' (Tabular VAE)"),
+    out_dir: Path = typer.Option(Path("./gl_output/generative_ml"), "--out-dir", "-o", help="Output directory"),
+    perturb: bool = typer.Option(False, "--perturb", "-p", help="Perturb latent manifold for adversarial anomaly injection"),
+    seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
+):
+    """Generative Tabular Machine Learning simulation (Gaussian Copula / TVAE)."""
+    console.print(Panel.fit(f"[bold magenta]Generative Tabular ML Synthesis (Model: {model.upper()})[/bold magenta]"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if model.lower() == "tvae":
+        synthesizer = TabularVAESynthesizer(seed=seed)
+        synthesizer.fit(epochs=20)
+        entries = synthesizer.synthesize_adversarial_vouchers(count=count)
+    else:
+        synthesizer = GaussianCopulaSynthesizer(seed=seed)
+        synthesizer.fit([])
+        entries = synthesizer.synthesize_journal_entries(count=count, perturb_latent=perturb)
+
+    batch_id = f"ML_{model.upper()}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+    batch = Batch(batch_id=batch_id, created_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), entries=entries)
+
+    csv_path, csv_hash = CSVGLExporter.export(batch.entries, out_dir / f"{batch_id}.csv")
+    pq_path, pq_hash = ParquetGLExporter.export(batch.entries, out_dir / f"{batch_id}.parquet")
+
+    table = Table(title=f"[bold green]Generative ML Output ({model.upper()})[/bold green]")
+    table.add_column("Vouchers Generated", justify="right")
+    table.add_column("Latent Perturbation", justify="center")
+    table.add_column("Total Debits == Credits", justify="center", style="bold green")
+    table.add_column("CSV Output Path")
+
+    table.add_row(
+        str(len(entries)),
+        "Active (Adversarial)" if (perturb or model.lower() == "tvae") else "Normal Prior",
+        f"${batch.total_debits:,.2f}",
+        str(csv_path),
+    )
+    console.print(table)
+
+
+@app.command("erp-export")
+def cmd_erp_export(
+    erp: str = typer.Option("workday", "--erp", "-e", help="Target ERP: workday, d365, netsuite, oracle_fc"),
+    count: int = typer.Option(50, "--count", "-n", help="Number of transactions to synthesize"),
+    out_dir: Path = typer.Option(Path("./gl_output/erp_export"), "--out-dir", "-o", help="Output directory"),
+    seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
+):
+    """Export transactions to enterprise ERP schemas (Workday, D365, NetSuite, Oracle Cloud)."""
+    console.print(Panel.fit(f"[bold blue]Multi-ERP Schema Exporter (Target: {erp.upper()})[/bold blue]"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    base_engine = BaseSynthesisEngine(seed=seed)
+    batch = base_engine.generate_batch(target_entry_count=count)
+
+    erp_key = erp.strip().lower()
+    if erp_key in ("workday", "wd"):
+        res = WorkdayExporter.export(batch.entries, out_dir)
+    elif erp_key in ("d365", "dynamics", "msft"):
+        res = D365Exporter.export(batch.entries, out_dir)
+    elif erp_key in ("netsuite", "ns"):
+        res = NetSuiteExporter.export(batch.entries, out_dir)
+    elif erp_key in ("oracle", "oracle_fc", "fusion"):
+        res = OracleFCExporter.export(batch.entries, out_dir)
+    else:
+        console.print(f"[bold red]Unknown ERP target: {erp}. Choose from: workday, d365, netsuite, oracle_fc[/bold red]")
+        raise typer.Exit(1)
+
+    table = Table(title=f"[bold green]Exported Artifacts for {erp.upper()}[/bold green]")
+    table.add_column("Schema Type", style="cyan")
+    table.add_column("File Path")
+    table.add_column("SHA-256 Digest", style="dim")
+
+    for schema_name, (file_path, file_hash) in res.items():
+        table.add_row(schema_name, str(file_path), file_hash[:16] + "...")
+    console.print(table)
+
+
+@app.command("dlt-verify")
+def cmd_dlt_verify(
+    count: int = typer.Option(50, "--count", "-n", help="Number of entries for Merkle ledger"),
+    out_dir: Path = typer.Option(Path("./gl_output/dlt_verify"), "--out-dir", "-o", help="Output directory"),
+    fuzz_fabric: bool = typer.Option(True, "--fuzz-fabric", help="Execute Hyperledger Fabric MVCC conflict fuzzing"),
+    fuzz_evm: bool = typer.Option(True, "--fuzz-evm", help="Execute Enterprise EVM smart contract vulnerability fuzzing"),
+    seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
+):
+    """Verify cryptographic Triple-Entry receipts and fuzz DLT consensus mechanisms."""
+    console.print(Panel.fit("[bold green]Cryptographic Triple-Entry & DLT Consensus Fuzzing Engine[/bold green]"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    base_engine = BaseSynthesisEngine(seed=seed)
+    batch = base_engine.generate_batch(target_entry_count=count)
+
+    # 1. SHA-256 Binary Merkle Ledger
+    ledger = MerkleLedger(batch.entries)
+    is_valid = ledger.verify_entire_ledger()
+    receipt = ledger.generate_triple_entry_receipt(0)
+
+    # Write receipt
+    rcpt_path = out_dir / "sample_triple_entry_receipt.json"
+    with open(rcpt_path, "w", encoding="utf-8") as f:
+        f.write(receipt.model_dump_json(indent=2))
+
+    table = Table(title="[bold yellow]Cryptographic Triple-Entry Ledger Report[/bold yellow]")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="bold green")
+
+    table.add_row("Total Entries in Merkle Tree", str(len(batch.entries)))
+    table.add_row("Merkle Root Hash (SHA-256)", ledger.root_hash)
+    table.add_row("All Inclusion Proofs Valid", "PASS (100% Intact)" if is_valid else "FAIL")
+    table.add_row("Sample Receipt Saved", str(rcpt_path))
+    console.print(table)
+
+    # 2. Fabric Consensus Fuzzing
+    if fuzz_fabric:
+        fab = FabricLedgerSimulator()
+        tx1, tx2 = fab.inject_mvcc_conflict_anomaly("10100", Decimal("100.00"), Decimal("200.00"))
+        fab.commit_transaction(tx1)
+        try:
+            fab.commit_transaction(tx2)
+            conflict_detected = False
+        except RWSetVersionConflict:
+            conflict_detected = True
+
+        fab_table = Table(title="[bold blue]Hyperledger Fabric Simulation[/bold blue]")
+        fab_table.add_column("Simulation Vector", style="cyan")
+        fab_table.add_column("Result")
+        fab_table.add_row("MVCC Conflict Detection", "[bold green]CAUGHT (Phantom read intercepted)[/bold green]" if conflict_detected else "[bold red]MISSED[/bold red]")
+        console.print(fab_table)
+
+    # 3. EVM Smart Contract Fuzzing
+    if fuzz_evm:
+        evm = EVMSmartContractSimulator()
+        underflow_result = evm.fuzz_integer_underflow("0xCORP_OPERATIONS", 100)
+        evm_table = Table(title="[bold red]Enterprise EVM Exploit Fuzzing[/bold red]")
+        evm_table.add_column("Exploit Vector", style="cyan")
+        evm_table.add_column("Status")
+        evm_table.add_row("Solidity Underflow Vector", f"[bold yellow]Fuzzed (Wrapped to {underflow_result})[/bold yellow]")
+        console.print(evm_table)
+
+
+@app.command(name="fagl-fcv")
+def run_fagl_fcv_cmd(
+    company_code: str = typer.Option("1000", "--company-code", "-c", help="Company code for foreign currency valuation"),
+    out_dir: Path = typer.Option(Path("./output"), "--out-dir", "-o", help="Output directory"),
+    items_count: int = typer.Option(5, "--items", "-n", help="Number of synthetic open foreign currency items to revalue"),
+    seed: int = typer.Option(42, "--seed", "-s", help="Random seed for rate simulation"),
+):
+    """Executes SAP FAGL_FCV month-end Foreign Currency Valuation run."""
+    console.print(Panel.fit(
+        "[bold cyan]SAP FAGL_FCV Foreign Currency Valuation Engine[/bold cyan]\n"
+        "[dim]ASC 830 / IAS 21 Balance Sheet Revaluation & Day-1 Reversals[/dim]\n"
+        "[italic magenta]Made with <3 by Atiqul-Akash | GitHub: Atiqul-Akash[/italic magenta]"
+    ))
+
+    coa = ChartOfAccounts.create_default()
+    engine = ForeignCurrencyValuationEngine(coa=coa, seed=seed)
+    batch_id = f"FCV_BATCH_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+
+    entries = engine.generate_synthetic_fcv_run(
+        batch_id=batch_id,
+        company_code=company_code,
+        num_open_items=items_count,
+        post_auto_reversal=True,
+    )
+
+    table = Table(title="[bold green]FAGL_FCV Valuation Vouchers Generated[/bold green]")
+    table.add_column("Doc Number", style="cyan")
+    table.add_column("Type", style="magenta")
+    table.add_column("Posting Date", style="yellow")
+    table.add_column("Header Text", style="white")
+    table.add_column("Total Debits", style="green")
+    table.add_column("Total Credits", style="green")
+    table.add_column("Balanced", style="bold green")
+
+    for e in entries:
+        table.add_row(
+            e.document_number,
+            e.document_type.value,
+            e.posting_date,
+            e.header_text,
+            f"${e.total_debits:,.2f}",
+            f"${e.total_credits:,.2f}",
+            "EXACT MATCH [PASS]" if e.is_balanced else "UNBALANCED [FAIL]",
+        )
+    console.print(table)
+
+
 if __name__ == "__main__":
     app()
+
 

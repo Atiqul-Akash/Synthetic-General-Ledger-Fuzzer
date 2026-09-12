@@ -69,14 +69,15 @@ class BenfordSkewMutator(BaseAnomalyMutator):
 
             # Update all lines equally to preserve mathematical double-entry balance
             old_amount = entry.lines[0].amount
+            new_amount_dec = Decimal(str(new_amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             for line in entry.lines:
-                line.amount = new_amount
+                line.amount = new_amount_dec
                 if line.amount_local is not None:
                     rate_loc = getattr(line, "exchange_rate_local", Decimal("1.000000")) or Decimal("1.000000")
-                    line.amount_local = (new_amount * rate_loc).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    line.amount_local = (new_amount_dec * rate_loc).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                 if line.amount_group is not None:
                     rate_grp = getattr(line, "exchange_rate_group", Decimal("1.000000")) or Decimal("1.000000")
-                    line.amount_group = (new_amount * rate_grp).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    line.amount_group = (new_amount_dec * rate_grp).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
             entry.is_anomaly = True

@@ -120,3 +120,38 @@ def test_full_pipeline_preserves_double_entry():
     assert len(records) >= 5
     assert batch.is_balanced
     assert batch.total_debits == batch.total_credits
+
+
+def test_pipeline_chronological_ordering():
+    """Verify that anomaly injection produces a strictly sorted chronological timeline."""
+    engine = BaseSynthesisEngine(seed=42)
+    batch = engine.generate_batch(target_entry_count=100)
+    pipeline = AnomalyPipeline(seed=42)
+    pipeline.inject_anomalies(batch, overall_anomaly_rate=0.25)
+
+    # Verify every subsequent entry is >= previous entry in posting_date / entry_time
+    for i in range(len(batch.entries) - 1):
+        curr = (batch.entries[i].posting_date, getattr(batch.entries[i], "entry_time", "") or "")
+        nxt = (batch.entries[i + 1].posting_date, getattr(batch.entries[i + 1], "entry_time", "") or "")
+        assert curr <= nxt, f"Chronological order violated at index {i}: {curr} > {nxt}"
+
+
+def test_pipeline_string_keys_in_rates_per_type():
+    """Verify that string enum keys or values in rates_per_type are honored."""
+    engine = BaseSynthesisEngine(seed=123)
+    batch = engine.generate_batch(target_entry_count=100)
+    pipeline = AnomalyPipeline(seed=123)
+
+    # Pass string value keys
+    rates = {
+        "SMURFING_SPLIT_APPROVAL": 0.15,
+        "BENFORD_FIRST_DIGIT_SKEW": 0.0,
+        "OFF_HOURS_GHOST_ENTRY": 0.0,
+        "ANOMALOUS_ACCOUNT_PAIRING": 0.0,
+        "CIRCULAR_INTERCOMPANY_ROUND_TRIP": 0.0,
+    }
+    records = pipeline.inject_anomalies(batch, rates_per_type=rates)
+    types_found = {r.anomaly_type.value for r in records}
+    assert "SMURFING_SPLIT_APPROVAL" in types_found
+    assert "BENFORD_FIRST_DIGIT_SKEW" not in types_found
+

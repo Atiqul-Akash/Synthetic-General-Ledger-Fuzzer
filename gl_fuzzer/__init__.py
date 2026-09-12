@@ -1,6 +1,6 @@
 """Enterprise-Grade Synthetic General Ledger (GL) Fuzzer & Anomaly Injection Engine."""
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 from gl_fuzzer.models.coa import Account, AccountType, ChartOfAccounts, NormalBalance
 from gl_fuzzer.models.journal import Batch, DebitCredit, DocumentType, JournalEntry, LineItem

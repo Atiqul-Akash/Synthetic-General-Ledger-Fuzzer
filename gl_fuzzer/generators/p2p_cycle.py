@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
-from typing import List, Optional
+from typing import List, Optional, Union
 import uuid
 import numpy as np
 
 from gl_fuzzer.models.coa import ChartOfAccounts
 from gl_fuzzer.models.journal import DebitCredit, DocumentType, JournalEntry, LineItem
 from gl_fuzzer.generators.distributions import BusinessCalendar, LogNormalAmountGenerator
+from gl_fuzzer.generators.hawkes_process import CoupledHawkesPointProcess, PaymentTerms
 
 
 class P2PCycleGenerator:
@@ -22,14 +23,30 @@ class P2PCycleGenerator:
         calendar: BusinessCalendar,
         amount_gen: Optional[LogNormalAmountGenerator] = None,
         rng: Optional[np.random.Generator] = None,
+        hawkes_process: Optional[CoupledHawkesPointProcess] = None,
     ):
         self.coa = coa
         self.calendar = calendar
         self.amount_gen = amount_gen or LogNormalAmountGenerator(mean_log=7.2, sigma_log=1.1, rng=rng)
         self.rng = rng or np.random.default_rng()
+        self.hawkes_process = hawkes_process or CoupledHawkesPointProcess(seed=int(self.rng.integers(1, 1000000)))
 
         self.vendors = [f"VEND_{1000 + i}" for i in range(50)]
         self.cost_centers = ["CC_CORP", "CC_MANUF", "CC_IT", "CC_SUPPLY", "CC_FACIL"]
+
+        # Realistic Master Data: Assign persistent contractual credit terms per vendor
+        terms_choices = [
+            PaymentTerms.NET_30,
+            PaymentTerms.DISCOUNT_2_10_NET_30,
+            PaymentTerms.NET_60,
+            PaymentTerms.NET_15,
+            PaymentTerms.DUE_ON_RECEIPT,
+        ]
+        terms_probs = [0.55, 0.20, 0.15, 0.07, 0.03]
+        self.vendor_terms = {
+            v: self.rng.choice(terms_choices, p=terms_probs)
+            for v in self.vendors
+        }
 
     def generate_full_p2p_flow(
         self,
@@ -37,10 +54,12 @@ class P2PCycleGenerator:
         company_code: str = "1000",
         fixed_amount: Optional[Decimal] = None,
         fixed_vendor: Optional[str] = None,
+        terms: Optional[Union[PaymentTerms, str]] = None,
     ) -> List[JournalEntry]:
         """Generates a coherent 3-stage P2P sequence: Goods Receipt -> Invoice Receipt -> Payment."""
         amount = fixed_amount if fixed_amount is not None else self.amount_gen.generate()
         vendor = fixed_vendor if fixed_vendor is not None else str(self.rng.choice(self.vendors))
+        chosen_terms = terms if terms is not None else self.vendor_terms.get(vendor, PaymentTerms.NET_30)
         cost_center = str(self.rng.choice(self.cost_centers))
         po_num = f"PO-4500{self.rng.integers(10000, 99999)}"
 
@@ -97,6 +116,7 @@ class P2PCycleGenerator:
 
         # 2. Invoice Receipt (KR) - posted 2 to 7 days after GR
         ir_date = min(gr_date + timedelta(days=int(self.rng.integers(2, 8))), self.calendar.end_date)
+        ir_date = self.calendar.snap_to_weekday(ir_date)
         ir_time = self.calendar.normal_business_time()
         ir_dt = f"{ir_date.isoformat()}T{ir_time.isoformat()}Z"
         ir_id = f"DOC_IR_{uuid.uuid4().hex[:8].upper()}"
@@ -147,8 +167,14 @@ class P2PCycleGenerator:
             lines=ir_lines,
         )
 
-        # 3. Vendor Payment (KZ) - posted 15 to 30 days after Invoice (Net 30 terms)
-        pay_date = min(ir_date + timedelta(days=int(self.rng.integers(15, 31))), self.calendar.end_date)
+        # 3. Vendor Payment (KZ) - sampled via Coupled Hawkes Point Process
+        delay_days, sampled_pay_date = self.hawkes_process.sample_payment_delay(
+            terms=chosen_terms,
+            invoice_date=ir_date,
+            snap_to_payment_run=True,
+            rng=self.rng,
+        )
+        pay_date = min(sampled_pay_date, self.calendar.end_date) if sampled_pay_date else min(ir_date + timedelta(days=delay_days), self.calendar.end_date)
         pay_time = self.calendar.normal_business_time()
         pay_dt = f"{pay_date.isoformat()}T{pay_time.isoformat()}Z"
         pay_id = f"DOC_PAY_{uuid.uuid4().hex[:8].upper()}"
@@ -164,6 +190,7 @@ class P2PCycleGenerator:
                 amount=amount,
                 posting_key="25",  # SAP Vendor Debit Clearing
                 vendor_id=vendor,
+                clearing_doc=ir_entry.document_number,
                 line_text=f"Payment settlement for {inv_ref}",
             ),
             LineItem(
@@ -293,12 +320,34 @@ class P2PCycleGenerator:
         batch_id: str,
         invoice_entry: JournalEntry,
         company_code: str = "1000",
+        terms: Union[PaymentTerms, str] = PaymentTerms.NET_30,
     ) -> JournalEntry:
         """Generates matching vendor payment document (KZ) for an existing invoice."""
-        amount = invoice_entry.total_debits
-        vendor = invoice_entry.lines[0].vendor_id or str(self.rng.choice(self.vendors))
+        ap_lines = [l for l in invoice_entry.lines if l.account_code.startswith("20") and l.debit_credit == DebitCredit.CREDIT]
+        if ap_lines:
+            amount = sum((l.amount for l in ap_lines), Decimal("0.00"))
+            vendor = ap_lines[0].vendor_id or invoice_entry.lines[0].vendor_id or str(self.rng.choice(self.vendors))
+        else:
+            amount = invoice_entry.total_debits
+            vendor = invoice_entry.lines[0].vendor_id or str(self.rng.choice(self.vendors))
         pay_id = f"DOC_PAY_{uuid.uuid4().hex[:8].upper()}"
-        doc_date = invoice_entry.posting_date
+
+        try:
+            inv_date = date.fromisoformat(invoice_entry.posting_date)
+            _, pay_dt = self.hawkes_process.sample_payment_delay(
+                terms=terms,
+                invoice_date=inv_date,
+                snap_to_payment_run=True,
+                rng=self.rng,
+            )
+            pay_date = min(pay_dt, self.calendar.end_date) if pay_dt else inv_date
+            doc_date = pay_date.isoformat()
+            f_year = pay_date.year
+            f_period = pay_date.month
+        except Exception:
+            doc_date = invoice_entry.posting_date
+            f_year = invoice_entry.fiscal_year
+            f_period = invoice_entry.fiscal_period
 
         lines = [
             LineItem(
@@ -330,8 +379,8 @@ class P2PCycleGenerator:
             entry_id=pay_id,
             batch_id=batch_id,
             company_code=company_code,
-            fiscal_year=invoice_entry.fiscal_year,
-            fiscal_period=invoice_entry.fiscal_period,
+            fiscal_year=f_year,
+            fiscal_period=f_period,
             document_type=DocumentType.KZ,
             document_number=f"150{self.rng.integers(100000, 999999)}",
             posting_date=doc_date,

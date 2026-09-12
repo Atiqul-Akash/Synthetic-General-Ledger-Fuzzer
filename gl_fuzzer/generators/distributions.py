@@ -115,6 +115,17 @@ class BusinessCalendar:
         idx = int(self.rng.integers(0, len(self.business_dates)))
         return self.business_dates[idx]
 
+    def snap_to_weekday(self, target_date: date) -> date:
+        """Snaps a date to the nearest weekday (Monday-Friday) within calendar bounds."""
+        d = target_date
+        while d.weekday() >= 5:
+            d += timedelta(days=1)
+        if d > self.end_date:
+            d = target_date
+            while d.weekday() >= 5:
+                d -= timedelta(days=1)
+        return min(max(d, self.start_date), self.end_date)
+
     def random_weekend_date(self) -> date:
         """Returns a Saturday or Sunday within the fiscal calendar in O(1) time."""
         idx = int(self.rng.integers(0, len(self.weekend_dates)))

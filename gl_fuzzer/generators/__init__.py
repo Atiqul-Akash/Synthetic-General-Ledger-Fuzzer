@@ -8,9 +8,15 @@ from gl_fuzzer.generators.o2c_cycle import O2CCycleGenerator
 from gl_fuzzer.generators.p2p_cycle import P2PCycleGenerator
 from gl_fuzzer.generators.r2r_cycle import R2RCycleGenerator
 
+from gl_fuzzer.generators.parallel_engine import MultiCoreSynthesisEngine
+from gl_fuzzer.generators.hawkes_process import CoupledHawkesPointProcess, PaymentTerms
+
 __all__ = [
     "BaseSynthesisEngine",
     "ChunkedSynthesisEngine",
+    "MultiCoreSynthesisEngine",
+    "CoupledHawkesPointProcess",
+    "PaymentTerms",
     "BenfordDistribution",
     "BusinessCalendar",
     "LogNormalAmountGenerator",
@@ -19,3 +25,4 @@ __all__ = [
     "O2CCycleGenerator",
     "R2RCycleGenerator",
 ]
+

@@ -20,8 +20,8 @@ class SAPBSEGExporter:
 
     BSEG_FIELDS = [
         "BUKRS", "BELNR", "GJAHR", "BUZEI", "BSCHL", "SHKZG",
-        "HKONT", "WRBTR", "WAERS", "KOSTL", "PRCTR", "LIFNR",
-        "KUNNR", "VBUND", "SGTXT"
+        "HKONT", "WRBTR", "WAERS", "DMBTR", "HWAER", "MWSKZ",
+        "KOSTL", "PRCTR", "LIFNR", "KUNNR", "VBUND", "SGTXT"
     ]
 
     @classmethod
@@ -86,6 +86,9 @@ class SAPBSEGExporter:
                         "HKONT": f"{line.account_code:0>10}",
                         "WRBTR": f"{line.amount:.2f}",
                         "WAERS": line.currency,
+                        "DMBTR": f"{(line.amount_local if line.amount_local is not None else line.amount):.2f}",
+                        "HWAER": line.currency_local or "USD",
+                        "MWSKZ": line.tax_code or "",
                         "KOSTL": line.cost_center or "",
                         "PRCTR": line.profit_center or "",
                         "LIFNR": line.vendor_id or "",

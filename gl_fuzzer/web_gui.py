@@ -40,7 +40,7 @@ class GLAppState:
     """Singleton state storing current generated batch, manifest, and export files."""
 
     def __init__(self):
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self.batch: Optional[Batch] = None
         self.manifest: Optional[GroundTruthManifest] = None
         self.anomaly_records: List[AnomalyRecord] = []
@@ -89,7 +89,7 @@ class GLAppState:
                 sales_fulfillment=sfe,
             )
 
-            batch_id = f"WEB_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            batch_id = f"WEB_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
             self.batch = engine.generate_batch(batch_id=batch_id, target_entry_count=count)
 
             enabled = enabled_anomalies or {
@@ -114,6 +114,16 @@ class GLAppState:
 
             pipeline = AnomalyPipeline(coa=coa, mutators=active_mutators, seed=seed)
             self.anomaly_records = pipeline.inject_anomalies(self.batch, overall_anomaly_rate=anomaly_rate)
+
+            if enable_wht:
+                from gl_fuzzer.tax.withholding import WithholdingTaxEngine
+                wht_eng = WithholdingTaxEngine()
+                for e in self.batch.entries:
+                    if e.document_type == DocumentType.KZ:
+                        wht_eng.apply_wht_to_payment_entry(e)
+
+            # Sort all batch entries chronologically for realistic general ledger posting order
+            self.batch.entries.sort(key=lambda e: (e.posting_date, e.entry_time))
 
             # Invariant Verification
             inv_report = InvariantVerifier.verify_batch(self.batch)
@@ -169,85 +179,96 @@ class GLAppState:
 
     def get_summary(self, inv_report: Optional[Any] = None) -> Dict[str, Any]:
         """Returns JSON summary of current generation."""
-        if not self.batch or not self.manifest:
-            return {"status": "EMPTY"}
+        with self._lock:
+            if not self.batch or not self.manifest:
+                return {"status": "EMPTY"}
 
-        if inv_report is None:
-            inv_report = InvariantVerifier.verify_batch(self.batch)
+            if inv_report is None:
+                inv_report = InvariantVerifier.verify_batch(self.batch)
 
-        # Truncated sample transactions for preview table (first 100)
-        sample_entries = []
-        for e in self.batch.entries[:100]:
-            lines_data = []
-            for l in e.lines:
-                lines_data.append({
-                    "line_id": l.line_id,
-                    "line_number": l.line_number,
-                    "account_code": l.account_code,
-                    "account_name": l.account_name,
-                    "debit_credit": l.debit_credit.value,
-                    "amount": f"{l.amount:.2f}",
-                    "posting_key": l.posting_key,
-                    "vendor_id": l.vendor_id or "",
-                    "customer_id": l.customer_id or "",
-                    "trading_partner": l.trading_partner or "",
-                    "cost_center": l.cost_center or "",
-                    "line_text": l.line_text,
+            # Sample transactions for preview table (up to 500 entries, ensuring all anomalies are included)
+            if len(self.batch.entries) <= 500:
+                preview_source = self.batch.entries
+            else:
+                anom_entries = [e for e in self.batch.entries if e.is_anomaly]
+                clean_entries = [e for e in self.batch.entries if not e.is_anomaly]
+                needed_clean = max(0, 500 - len(anom_entries))
+                preview_source = anom_entries + clean_entries[:needed_clean]
+                preview_source.sort(key=lambda x: (x.posting_date, x.entry_time))
+
+            sample_entries = []
+            for e in preview_source:
+                lines_data = []
+                for l in e.lines:
+                    lines_data.append({
+                        "line_id": l.line_id,
+                        "line_number": l.line_number,
+                        "account_code": l.account_code,
+                        "account_name": l.account_name,
+                        "debit_credit": l.debit_credit.value,
+                        "amount": f"{l.amount:.2f}",
+                        "posting_key": l.posting_key,
+                        "vendor_id": l.vendor_id or "",
+                        "customer_id": l.customer_id or "",
+                        "trading_partner": l.trading_partner or "",
+                        "cost_center": l.cost_center or "",
+                        "line_text": l.line_text,
+                    })
+
+                sample_entries.append({
+                    "entry_id": e.entry_id,
+                    "document_number": e.document_number,
+                    "company_code": e.company_code,
+                    "document_type": e.document_type.value,
+                    "posting_date": e.posting_date,
+                    "entry_time": e.entry_time,
+                    "created_by": e.created_by,
+                    "business_cycle": e.business_cycle,
+                    "header_text": e.header_text,
+                    "total_debits": f"{e.total_debits:.2f}",
+                    "total_credits": f"{e.total_credits:.2f}",
+                    "is_balanced": e.is_balanced,
+                    "is_anomaly": e.is_anomaly,
+                    "anomaly_ids": e.anomaly_ids,
+                    "lines": lines_data,
                 })
 
-            sample_entries.append({
-                "entry_id": e.entry_id,
-                "document_number": e.document_number,
-                "company_code": e.company_code,
-                "document_type": e.document_type.value,
-                "posting_date": e.posting_date,
-                "entry_time": e.entry_time,
-                "created_by": e.created_by,
-                "business_cycle": e.business_cycle,
-                "header_text": e.header_text,
-                "total_debits": f"{e.total_debits:.2f}",
-                "total_credits": f"{e.total_credits:.2f}",
-                "is_balanced": e.is_balanced,
-                "is_anomaly": e.is_anomaly,
-                "anomaly_ids": e.anomaly_ids,
-                "lines": lines_data,
-            })
-
-        return {
-            "status": "READY",
-            "batch_id": self.batch.batch_id,
-            "total_entries": len(self.batch.entries),
-            "total_lines": self.batch.total_line_count,
-            "total_debits": f"{self.batch.total_debits:.2f}",
-            "total_credits": f"{self.batch.total_credits:.2f}",
-            "is_globally_balanced": inv_report.is_globally_balanced,
-            "balance_delta": f"{self.batch.total_debits - self.batch.total_credits:.2f}",
-            "clean_entries_count": self.manifest.clean_entries_count,
-            "anomalous_entries_count": self.manifest.anomalous_entries_count,
-            "anomaly_rate": self.manifest.anomaly_rate,
-            "anomaly_breakdown": self.manifest.anomaly_breakdown,
-            "sample_entries": sample_entries,
-            "dataset_sha256": self.manifest.dataset_sha256,
-        }
+            return {
+                "status": "READY",
+                "batch_id": self.batch.batch_id,
+                "total_entries": len(self.batch.entries),
+                "total_lines": self.batch.total_line_count,
+                "total_debits": f"{self.batch.total_debits:.2f}",
+                "total_credits": f"{self.batch.total_credits:.2f}",
+                "is_globally_balanced": inv_report.is_globally_balanced,
+                "balance_delta": f"{self.batch.total_debits - self.batch.total_credits:.2f}",
+                "clean_entries_count": self.manifest.clean_entries_count,
+                "anomalous_entries_count": self.manifest.anomalous_entries_count,
+                "anomaly_rate": self.manifest.anomaly_rate,
+                "anomaly_breakdown": self.manifest.anomaly_breakdown,
+                "sample_entries": sample_entries,
+                "dataset_sha256": self.manifest.dataset_sha256,
+            }
 
     def run_audit(self) -> Dict[str, Any]:
         """Runs the 5 SOX 404 audit screening tests on current batch."""
-        if not self.batch:
-            return {"error": "No dataset generated yet"}
+        with self._lock:
+            if not self.batch:
+                return {"error": "No dataset generated yet"}
 
-        benford = ForensicAuditEvaluator.evaluate_benford_compliance(self.batch.entries)
-        doa = ForensicAuditEvaluator.detect_doa_split_clusters(self.batch.entries)
-        off_hours = ForensicAuditEvaluator.detect_off_hours_and_ghost_entries(self.batch.entries)
-        pairings = ForensicAuditEvaluator.detect_anomalous_pairings(self.batch.entries)
-        ic = ForensicAuditEvaluator.detect_intercompany_cycles(self.batch.entries)
+            benford = ForensicAuditEvaluator.evaluate_benford_compliance(self.batch.entries)
+            doa = ForensicAuditEvaluator.detect_doa_split_clusters(self.batch.entries)
+            off_hours = ForensicAuditEvaluator.detect_off_hours_and_ghost_entries(self.batch.entries)
+            pairings = ForensicAuditEvaluator.detect_anomalous_pairings(self.batch.entries)
+            ic = ForensicAuditEvaluator.detect_intercompany_cycles(self.batch.entries)
 
-        return {
-            "benford": benford,
-            "doa": doa,
-            "off_hours": off_hours,
-            "pairings": pairings,
-            "intercompany": ic,
-        }
+            return {
+                "benford": benford,
+                "doa": doa,
+                "off_hours": off_hours,
+                "pairings": pairings,
+                "intercompany": ic,
+            }
 
     def run_fuzzing_campaign(self, iterations: int = 3, count: int = 50, target: str = "mock") -> Dict[str, Any]:
         """Runs dynamic security fuzzing feedback loop against target."""
@@ -449,6 +470,7 @@ class GLAppState:
                 "encoding": result.encoding,
                 "anomalies": [a.value for a in result.applied_anomalies],
                 "preview": preview_text,
+                "file_path": str(file_path),
                 "download_url": f"/api/download/{out_filename}",
             }
 
@@ -907,7 +929,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             </tbody>
           </table>
         </div>
-        <p class="text-[11px] text-slate-400 mt-2">Showing first 100 sample entries in interactive explorer.</p>
+        <p class="text-[11px] text-slate-400 mt-2" id="explorer-note">Showing sample entries in interactive explorer.</p>
       </div>
 
       <!-- Tab Content 2: SOX 404 Forensic Screening -->
@@ -1396,6 +1418,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         `;
         tbody.appendChild(tr);
       });
+
+      const note = document.getElementById('explorer-note');
+      if (note && currentData) {
+        const totalDataset = currentData.total_entries || currentData.sample_entries.length;
+        note.innerText = `Showing ${filtered.length} of ${currentData.sample_entries.length} previewed vouchers (${currentData.anomalous_entries_count || 0} total anomalies across ${totalDataset} entries in dataset).`;
+      }
     }
 
     function inspectEntry(entryId) {

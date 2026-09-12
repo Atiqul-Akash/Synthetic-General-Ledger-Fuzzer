@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import math
 from typing import Generator, List, Optional, Tuple
@@ -48,6 +48,7 @@ class ChunkedSynthesisEngine:
             return entries
 
         foreign_currencies = ["EUR", "GBP", "JPY", "CHF", "CAD"]
+        cycle_shifts = {}
 
         for entry in entries:
             # 1. Apply Macro Seasonality Date Shift (only for non-anomalous entries to preserve temporal clustering)
@@ -55,20 +56,41 @@ class ChunkedSynthesisEngine:
                 try:
                     entry_dt = datetime.fromisoformat(entry.posting_date)
                     is_weekend = entry_dt.weekday() >= 5 or "GHOST" in entry.entry_id or "WEEKEND" in entry.entry_id
+                    orig_date = entry_dt.date()
                 except Exception:
                     is_weekend = "GHOST" in entry.entry_id or "WEEKEND" in entry.entry_id
+                    orig_date = date(2026, 1, 1)
 
-                if is_weekend:
-                    sampled_date = self.macro_calendar.sample_weekend_date()
+                cycle_key = None
+                if entry.reference and any(k in entry.reference for k in ("PO", "SO", "INV")):
+                    cycle_key = entry.reference
                 else:
-                    sampled_date = self.macro_calendar.sample_business_date()
+                    for l in entry.lines:
+                        txt = l.line_text or ""
+                        for part in txt.split():
+                            if part.startswith("PO-") or part.startswith("SO-") or part.startswith("INV-"):
+                                cycle_key = part
+                                break
+                        if cycle_key:
+                            break
+
+                if cycle_key and cycle_key in cycle_shifts:
+                    shift = cycle_shifts[cycle_key]
+                    sampled_date = max(min(orig_date + shift, date(2026, 12, 31)), date(2026, 1, 1))
+                else:
+                    if is_weekend:
+                        sampled_date = self.macro_calendar.sample_weekend_date()
+                    else:
+                        sampled_date = self.macro_calendar.sample_business_date()
+                    if cycle_key:
+                        cycle_shifts[cycle_key] = sampled_date - orig_date
+
                 entry.posting_date = sampled_date.isoformat()
                 entry.document_date = sampled_date.isoformat()
                 entry.fiscal_year = sampled_date.year
                 entry.fiscal_period = sampled_date.month
                 time_str = getattr(entry, "entry_time", "09:30:00") or "09:30:00"
                 entry.created_at = f"{sampled_date.isoformat()}T{time_str}Z"
-
 
             # 2. Apply Multi-Currency Triad (ASC 830)
             if self.multi_currency and self.fx_provider:
@@ -79,7 +101,7 @@ class ChunkedSynthesisEngine:
 
                 # Triangulate local and group conversion rates
                 rate_to_local = self.fx_provider.get_exchange_rate(doc_currency, self.base_currency, doc_date_str)
-                rate_to_group = self.fx_provider.get_exchange_rate(self.base_currency, self.reporting_currency, doc_date_str)
+                rate_to_group = self.fx_provider.get_exchange_rate(doc_currency, self.reporting_currency, doc_date_str)
 
                 for line in entry.lines:
                     line.currency = doc_currency
@@ -90,26 +112,27 @@ class ChunkedSynthesisEngine:
 
                     # Convert to local and group amounts
                     amt_local = (line.amount * rate_to_local).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                    amt_group = (amt_local * rate_to_group).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    amt_group = (line.amount * rate_to_group).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
                     line.amount_local = amt_local
                     line.amount_group = amt_group
 
-                # Invariant Safeguard: Ensure local and group sums balance to exact cent
-                delta_local = entry.total_debits_local - entry.total_credits_local
-                if delta_local != Decimal("0.00") and len(entry.lines) >= 2:
-                    # Adjust the largest credit line to safely absorb rounding fractional cent without going <= 0
-                    credit_lines = [l for l in entry.lines if l.debit_credit == DebitCredit.CREDIT and l.amount_local is not None]
-                    if credit_lines:
-                        target_line = max(credit_lines, key=lambda l: l.amount_local or Decimal("0.00"))
-                        target_line.amount_local = (target_line.amount_local + delta_local).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                # Invariant Safeguard: Ensure local and group sums balance to exact cent for balanced entries
+                if entry.is_balanced:
+                    delta_local = entry.total_debits_local - entry.total_credits_local
+                    if delta_local != Decimal("0.00") and len(entry.lines) >= 2:
+                        # Adjust the largest credit line to safely absorb rounding fractional cent without going <= 0
+                        credit_lines = [l for l in entry.lines if l.debit_credit == DebitCredit.CREDIT and l.amount_local is not None]
+                        if credit_lines:
+                            target_line = max(credit_lines, key=lambda l: l.amount_local or Decimal("0.00"))
+                            target_line.amount_local = (target_line.amount_local + delta_local).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-                delta_group = entry.total_debits_group - entry.total_credits_group
-                if delta_group != Decimal("0.00") and len(entry.lines) >= 2:
-                    credit_lines_g = [l for l in entry.lines if l.debit_credit == DebitCredit.CREDIT and l.amount_group is not None]
-                    if credit_lines_g:
-                        target_line_g = max(credit_lines_g, key=lambda l: l.amount_group or Decimal("0.00"))
-                        target_line_g.amount_group = (target_line_g.amount_group + delta_group).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    delta_group = entry.total_debits_group - entry.total_credits_group
+                    if delta_group != Decimal("0.00") and len(entry.lines) >= 2:
+                        credit_lines_g = [l for l in entry.lines if l.debit_credit == DebitCredit.CREDIT and l.amount_group is not None]
+                        if credit_lines_g:
+                            target_line_g = max(credit_lines_g, key=lambda l: l.amount_group or Decimal("0.00"))
+                            target_line_g.amount_group = (target_line_g.amount_group + delta_group).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         return entries
 
@@ -142,6 +165,9 @@ class ChunkedSynthesisEngine:
 
             # 3. Enrich all entries with multi-currency and seasonality
             batch.entries = self._apply_multi_currency_and_seasonality(batch.entries)
+
+            # Guarantee chronologically interleaved timeline across all entries in chunk
+            batch.entries.sort(key=lambda e: (e.posting_date, getattr(e, "entry_time", "00:00:00") or "00:00:00"))
 
             # 4. Stream publish in real time if publisher provided
             if stream_publisher is not None:

@@ -19,6 +19,37 @@ from gl_fuzzer.subledgers.order_fulfillment import (
     SalesOrder,
     SalesOrderFulfillmentEngine,
 )
+from gl_fuzzer.subledgers.fixed_assets import (
+    AssetClass,
+    AssetComponent,
+    AssetStatus,
+    CapitalizationThresholdEvasionMutator,
+    DepreciationMethod,
+    FixedAssetMaster,
+    FixedAssetSubledger,
+    ImpairmentOmissionMutator,
+    ZombieAssetMutator,
+)
+from gl_fuzzer.subledgers.treasury import (
+    BenchmarkRate,
+    CorporateBond,
+    CouponType,
+    CovenantCheckResult,
+    CovenantSuppressionMutator,
+    DebtCovenantThresholds,
+    DebtFacility,
+    DebtRolloverConcealment,
+    FacilityType,
+    HedgeIneffectivenessConcealment,
+    InterestRateSwap,
+    Seniority,
+    TreasurySubledger,
+)
+from gl_fuzzer.subledgers.fx_revaluation import (
+    ForeignCurrencyValuationEngine,
+    OpenCurrencyItem,
+    RevaluationResult,
+)
 
 __all__ = [
     "BinLocation",
@@ -34,4 +65,30 @@ __all__ = [
     "DeliveryWaybill",
     "SalesOrder",
     "SalesOrderFulfillmentEngine",
+    "AssetClass",
+    "AssetComponent",
+    "AssetStatus",
+    "CapitalizationThresholdEvasionMutator",
+    "DepreciationMethod",
+    "FixedAssetMaster",
+    "FixedAssetSubledger",
+    "ImpairmentOmissionMutator",
+    "ZombieAssetMutator",
+    "BenchmarkRate",
+    "CorporateBond",
+    "CouponType",
+    "CovenantCheckResult",
+    "CovenantSuppressionMutator",
+    "DebtCovenantThresholds",
+    "DebtFacility",
+    "DebtRolloverConcealment",
+    "FacilityType",
+    "HedgeIneffectivenessConcealment",
+    "InterestRateSwap",
+    "Seniority",
+    "TreasurySubledger",
+    "ForeignCurrencyValuationEngine",
+    "OpenCurrencyItem",
+    "RevaluationResult",
 ]
+

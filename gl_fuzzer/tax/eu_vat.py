@@ -146,7 +146,7 @@ class EUVATEngine:
         )
 
         tax_lines = []
-        if tax_amt > Decimal("0.00"):
+        if tax_amt != Decimal("0.00"):
             uid = uuid.uuid4().hex[:8].upper()
             # 1. Debit Input VAT Recoverable
             tax_lines.append(

@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
-from typing import List, Optional
+from typing import List, Optional, Union
 import uuid
 import numpy as np
 
 from gl_fuzzer.models.coa import ChartOfAccounts
 from gl_fuzzer.models.journal import DebitCredit, DocumentType, JournalEntry, LineItem
 from gl_fuzzer.generators.distributions import BusinessCalendar, LogNormalAmountGenerator
+from gl_fuzzer.generators.hawkes_process import CoupledHawkesPointProcess, PaymentTerms
 
 
 class O2CCycleGenerator:
@@ -22,14 +23,30 @@ class O2CCycleGenerator:
         calendar: BusinessCalendar,
         amount_gen: Optional[LogNormalAmountGenerator] = None,
         rng: Optional[np.random.Generator] = None,
+        hawkes_process: Optional[CoupledHawkesPointProcess] = None,
     ):
         self.coa = coa
         self.calendar = calendar
         self.amount_gen = amount_gen or LogNormalAmountGenerator(mean_log=7.6, sigma_log=1.2, rng=rng)
         self.rng = rng or np.random.default_rng()
+        self.hawkes_process = hawkes_process or CoupledHawkesPointProcess(seed=int(self.rng.integers(1, 1000000)))
 
         self.customers = [f"CUST_{2000 + i}" for i in range(40)]
         self.profit_centers = ["PC_RETAIL", "PC_WHOLESALE", "PC_ONLINE", "PC_ENTERPRISE"]
+
+        # Realistic Master Data: Assign persistent contractual credit terms per customer
+        terms_choices = [
+            PaymentTerms.NET_30,
+            PaymentTerms.NET_60,
+            PaymentTerms.DISCOUNT_2_10_NET_30,
+            PaymentTerms.NET_15,
+            PaymentTerms.DUE_ON_RECEIPT,
+        ]
+        terms_probs = [0.55, 0.20, 0.15, 0.07, 0.03]
+        self.customer_terms = {
+            c: self.rng.choice(terms_choices, p=terms_probs)
+            for c in self.customers
+        }
 
     def generate_full_o2c_flow(
         self,
@@ -37,10 +54,12 @@ class O2CCycleGenerator:
         company_code: str = "1000",
         fixed_amount: Optional[Decimal] = None,
         fixed_customer: Optional[str] = None,
+        terms: Optional[Union[PaymentTerms, str]] = None,
     ) -> List[JournalEntry]:
         """Generates a complete 3-stage O2C flow: Goods Issue -> Customer Billing -> Cash Receipt."""
         revenue_amount = fixed_amount if fixed_amount is not None else self.amount_gen.generate()
         customer = fixed_customer if fixed_customer is not None else str(self.rng.choice(self.customers))
+        chosen_terms = terms if terms is not None else self.customer_terms.get(customer, PaymentTerms.NET_30)
         profit_center = str(self.rng.choice(self.profit_centers))
         so_num = f"SO-100{self.rng.integers(10000, 99999)}"
 
@@ -99,6 +118,7 @@ class O2CCycleGenerator:
 
         # 2. Customer Billing (DR): AR vs Revenue + Sales Tax (6% sales tax)
         bill_date = min(gi_date + timedelta(days=int(self.rng.integers(1, 4))), self.calendar.end_date)
+        bill_date = self.calendar.snap_to_weekday(bill_date)
         bill_time = self.calendar.normal_business_time()
         bill_dt = f"{bill_date.isoformat()}T{bill_time.isoformat()}Z"
         bill_id = f"DOC_BILL_{uuid.uuid4().hex[:8].upper()}"
@@ -165,8 +185,14 @@ class O2CCycleGenerator:
             lines=bill_lines,
         )
 
-        # 3. Cash Receipt (DZ): Customer settles invoice via Bank wire/lockbox
-        pay_date = min(bill_date + timedelta(days=int(self.rng.integers(10, 35))), self.calendar.end_date)
+        # 3. Cash Receipt (DZ): Customer settles invoice via Bank wire/lockbox (sampled via Coupled Hawkes Process)
+        delay_days, sampled_pay_date = self.hawkes_process.sample_payment_delay(
+            terms=chosen_terms,
+            invoice_date=bill_date,
+            snap_to_payment_run=False,
+            rng=self.rng,
+        )
+        pay_date = min(sampled_pay_date, self.calendar.end_date) if sampled_pay_date else min(bill_date + timedelta(days=delay_days), self.calendar.end_date)
         pay_time = self.calendar.normal_business_time()
         pay_dt = f"{pay_date.isoformat()}T{pay_time.isoformat()}Z"
         pay_id = f"DOC_CR_{uuid.uuid4().hex[:8].upper()}"
@@ -194,6 +220,7 @@ class O2CCycleGenerator:
                 posting_key="15",  # SAP Customer Credit Clearing
                 customer_id=customer,
                 profit_center=profit_center,
+                clearing_doc=bill_entry.document_number,
                 line_text=f"AR clearance for {customer}",
             ),
         ]
@@ -304,6 +331,88 @@ class O2CCycleGenerator:
             created_by=user,
             reference=f"INV-SALES-{self.rng.integers(100000, 999999)}",
             header_text=f"Direct Invoice {cust}",
+            business_cycle="O2C",
+            lines=lines,
+        )
+
+    def generate_customer_payment(
+        self,
+        batch_id: str,
+        billing_entry: JournalEntry,
+        company_code: str = "1000",
+        terms: Union[PaymentTerms, str] = PaymentTerms.NET_30,
+    ) -> JournalEntry:
+        """Generates matching customer cash receipt document (DZ) for an existing billing document."""
+        ar_lines = [l for l in billing_entry.lines if l.account_code.startswith("11") and l.debit_credit == DebitCredit.DEBIT]
+        if ar_lines:
+            amount = sum((l.amount for l in ar_lines), Decimal("0.00"))
+            customer = ar_lines[0].customer_id or billing_entry.lines[0].customer_id or str(self.rng.choice(self.customers))
+            profit_center = ar_lines[0].profit_center or str(self.rng.choice(self.profit_centers))
+        else:
+            amount = billing_entry.total_credits
+            customer = billing_entry.lines[0].customer_id or str(self.rng.choice(self.customers))
+            profit_center = str(self.rng.choice(self.profit_centers))
+
+        pay_id = f"DOC_CR_{uuid.uuid4().hex[:8].upper()}"
+
+        try:
+            bill_date = date.fromisoformat(billing_entry.posting_date)
+            delay_days, sampled_pay_date = self.hawkes_process.sample_payment_delay(
+                terms=terms,
+                invoice_date=bill_date,
+                snap_to_payment_run=False,
+                rng=self.rng,
+            )
+            pay_date = min(sampled_pay_date, self.calendar.end_date) if sampled_pay_date else min(bill_date + timedelta(days=delay_days), self.calendar.end_date)
+            doc_date = pay_date.isoformat()
+            f_year = pay_date.year
+            f_period = pay_date.month
+        except Exception:
+            doc_date = billing_entry.posting_date
+            f_year = billing_entry.fiscal_year
+            f_period = billing_entry.fiscal_period
+
+        lines = [
+            LineItem(
+                line_id=f"{pay_id}-001",
+                entry_id=pay_id,
+                line_number=1,
+                account_code="10100",
+                account_name="Operating Cash & Bank",
+                debit_credit=DebitCredit.DEBIT,
+                amount=amount,
+                posting_key="40",
+                line_text=f"Wire deposit lockbox from {customer}",
+            ),
+            LineItem(
+                line_id=f"{pay_id}-002",
+                entry_id=pay_id,
+                line_number=2,
+                account_code="11000",
+                account_name="Accounts Receivable - Trade",
+                debit_credit=DebitCredit.CREDIT,
+                amount=amount,
+                posting_key="15",  # SAP Customer Credit Clearing
+                customer_id=customer,
+                profit_center=profit_center,
+                clearing_doc=billing_entry.document_number,
+                line_text=f"AR clearance for {customer}",
+            ),
+        ]
+        return JournalEntry(
+            entry_id=pay_id,
+            batch_id=batch_id,
+            company_code=company_code,
+            fiscal_year=f_year,
+            fiscal_period=f_period,
+            document_type=DocumentType.DZ,
+            document_number=f"140{self.rng.integers(100000, 999999)}",
+            posting_date=doc_date,
+            document_date=doc_date,
+            created_at=f"{doc_date}T15:00:00Z",
+            created_by="AUTO_LOCKBOX_FEED",
+            reference=f"WIRE-{self.rng.integers(1000000, 9999999)}",
+            header_text=f"Payment Receipt {customer}",
             business_cycle="O2C",
             lines=lines,
         )

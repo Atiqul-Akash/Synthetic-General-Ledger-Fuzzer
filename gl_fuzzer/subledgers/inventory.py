@@ -151,7 +151,15 @@ class WarehouseInventory:
                 f"Insufficient inventory for {material_number} in bin {bin_id}. Available: {bin_loc.qty_on_hand}, Requested: {qty_dec}"
             )
 
-        unit_cost = mat.moving_avg_price
+        # Respect configured costing method for COGS valuation
+        costing_method = getattr(mat, "costing_method", "MAP")
+        if costing_method == "STANDARD_COST" and mat.standard_price and mat.standard_price > Decimal("0"):
+            unit_cost = mat.standard_price
+        elif costing_method == "FIFO" and getattr(mat, "fifo_layers", None):
+            # Use the price of the oldest FIFO layer
+            unit_cost = mat.fifo_layers[0].unit_price if mat.fifo_layers else mat.moving_avg_price
+        else:
+            unit_cost = mat.moving_avg_price
         total_val = (qty_dec * unit_cost).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         m = StockMovement(
@@ -166,8 +174,8 @@ class WarehouseInventory:
             bin_id=bin_id,
             timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         )
-        bin_loc.qty_on_hand -= qty_dec
         self.movements.append(m)
+        bin_loc.qty_on_hand -= qty_dec
         return m
 
     def physical_inventory_count(

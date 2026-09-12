@@ -72,6 +72,7 @@ class ChartOfAccounts(BaseModel):
             Account(code="10100", name="Operating Cash & Bank", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
             Account(code="10200", name="Payroll Cash Account", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
             Account(code="11000", name="Accounts Receivable - Trade", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT, is_reconciliation=True),
+            Account(code="11090", name="AR Foreign Exchange Revaluation Adjustment", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT, is_reconciliation=True),
             Account(code="11500", name="Allowance for Doubtful Accounts", account_type=AccountType.ASSET, normal_balance=NormalBalance.CREDIT, is_contra=True), # Contra asset
             Account(code="12000", name="Intercompany Receivables", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT, is_intercompany=True),
             Account(code="13000", name="Input Tax / VAT Receivable", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
@@ -80,10 +81,13 @@ class ChartOfAccounts(BaseModel):
             Account(code="14100", name="Finished Goods Inventory", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
             Account(code="15000", name="Prepaid Expenses", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
             Account(code="17000", name="Property, Plant & Equipment", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
+            Account(code="17100", name="Right-of-Use Assets - Leases", account_type=AccountType.ASSET, normal_balance=NormalBalance.DEBIT),
+            Account(code="17800", name="Accumulated Impairment - PPE", account_type=AccountType.ASSET, normal_balance=NormalBalance.CREDIT, is_contra=True), # Contra asset
             Account(code="17900", name="Accumulated Depreciation - PPE", account_type=AccountType.ASSET, normal_balance=NormalBalance.CREDIT, is_contra=True), # Contra asset
 
             # 2xxxx: Liabilities & Clearing (Credit Normal)
             Account(code="20000", name="Accounts Payable - Trade", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.CREDIT, is_reconciliation=True),
+            Account(code="20090", name="AP Foreign Exchange Revaluation Adjustment", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.CREDIT, is_reconciliation=True),
             Account(code="21000", name="Accrued Operating Expenses", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.CREDIT),
             Account(code="21100", name="GR/IR Clearing Account", account_type=AccountType.CLEARING, normal_balance=NormalBalance.CREDIT, is_reconciliation=True),
             Account(code="21150", name="GR/IR Subledger Bridge Clearing", account_type=AccountType.CLEARING, normal_balance=NormalBalance.CREDIT, is_reconciliation=True),
@@ -96,10 +100,15 @@ class ChartOfAccounts(BaseModel):
             Account(code="22300", name="Use Tax Payable", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.CREDIT),
             Account(code="23000", name="Intercompany Payables", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.CREDIT, is_intercompany=True),
             Account(code="25000", name="Current Portion of Long Term Debt", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.CREDIT),
+            Account(code="25100", name="Senior Debt & Corporate Bonds Payable", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.CREDIT),
+            Account(code="25200", name="Unamortized Debt Discount/Premium", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.DEBIT, is_contra=True), # Contra liability
+            Account(code="25300", name="Lease Liability - IFRS 16", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.CREDIT),
+            Account(code="25400", name="Derivative Hedging Liability / MTM", account_type=AccountType.LIABILITY, normal_balance=NormalBalance.CREDIT),
 
             # 3xxxx: Equity (Credit Normal)
             Account(code="30000", name="Common Stock", account_type=AccountType.EQUITY, normal_balance=NormalBalance.CREDIT),
             Account(code="31000", name="Additional Paid-in Capital", account_type=AccountType.EQUITY, normal_balance=NormalBalance.CREDIT),
+            Account(code="32000", name="Accumulated Other Comprehensive Income - Cash Flow Hedges", account_type=AccountType.EQUITY, normal_balance=NormalBalance.CREDIT),
             Account(code="33000", name="Retained Earnings", account_type=AccountType.EQUITY, normal_balance=NormalBalance.CREDIT),
 
             # 4xxxx: Revenue (Credit Normal)
@@ -108,6 +117,9 @@ class ChartOfAccounts(BaseModel):
             Account(code="42000", name="Intercompany Revenue - Management Fees", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT, is_intercompany=True),
             Account(code="43000", name="Sales Discounts Allowed", account_type=AccountType.REVENUE, normal_balance=NormalBalance.DEBIT, is_contra=True), # Contra revenue
             Account(code="47000", name="Realized Foreign Exchange Gain", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT),
+            Account(code="47100", name="Unrealized Foreign Exchange Gain", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT),
+            Account(code="48000", name="Gain on Disposal of Fixed Assets", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT),
+            Account(code="48100", name="Unrealized Gain on Derivative Instruments", account_type=AccountType.REVENUE, normal_balance=NormalBalance.CREDIT),
 
             # 5xxxx: Cost of Goods Sold & Variances (Debit Normal)
             Account(code="50000", name="Cost of Goods Sold - Materials", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
@@ -125,8 +137,13 @@ class ChartOfAccounts(BaseModel):
             Account(code="63000", name="Advertising & Marketing Expense", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
             Account(code="64000", name="Legal & Professional Fees", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
             Account(code="65000", name="Depreciation Expense", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
+            Account(code="65100", name="Impairment Loss on Fixed Assets (IAS 36)", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
+            Account(code="65200", name="Loss on Disposal of Fixed Assets", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
             Account(code="66000", name="Travel & Entertainment Expense", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
             Account(code="67000", name="Realized Foreign Exchange Loss", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
+            Account(code="67100", name="Unrealized Foreign Exchange Loss", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
+            Account(code="68000", name="Interest Expense on Corporate Debt", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
+            Account(code="68100", name="Derivative Ineffectiveness & MTM Loss", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
             Account(code="69000", name="Miscellaneous Operating Expense", account_type=AccountType.EXPENSE, normal_balance=NormalBalance.DEBIT),
 
             # 9xxxx: Suspense & Intercompany Clearing

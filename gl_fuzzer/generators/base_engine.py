@@ -129,17 +129,23 @@ class BaseSynthesisEngine:
                         entry = self.tax_engine.apply_tax_to_entry(entry, is_purchase=False)
                     entries.append(entry)
             else:
-                # R2R: Depreciation, Accrual, or Payroll
-                r2r_choice = self.rng.integers(0, 3)
+                # R2R: Depreciation, Accrual, Payroll, or FAGL_FCV FX Revaluation
+                rem = target_entry_count - len(entries)
+                r2r_choice = self.rng.integers(0, 4) if rem >= 2 else self.rng.integers(0, 3)
                 if r2r_choice == 0:
                     entries.append(self.r2r_gen.generate_depreciation_run(batch_id=b_id, company_code=cmp))
                 elif r2r_choice == 1:
                     entries.append(self.r2r_gen.generate_operating_accrual(batch_id=b_id, company_code=cmp))
-                else:
+                elif r2r_choice == 2:
                     entries.append(self.r2r_gen.generate_payroll_run(batch_id=b_id, company_code=cmp))
+                else:
+                    entries.extend(self.r2r_gen.generate_fagl_fcv_run(batch_id=b_id, company_code=cmp))
 
         # Trim exact target count if slightly exceeded
         batch_entries = entries[:target_entry_count]
+
+        # Order entries chronologically across business cycles
+        batch_entries.sort(key=lambda e: (e.posting_date, getattr(e, "entry_time", "00:00:00") or "00:00:00"))
 
         return Batch(
             batch_id=b_id,
